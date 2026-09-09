@@ -23,7 +23,21 @@ Never expose provider SDK objects directly to UI/domain.
 
 ## 2. Error Shape
 
-Prefer stable internal errors such as:
+Application services use a typed result convention for expected failures:
+
+``` text
+Result<T, DomainError> =
+  { ok: true, value: T }
+  | { ok: false, error: DomainError }
+```
+
+`DomainError` contains a stable `code`, a safe default `message`, optional
+safe field-level `details`, and a `retryable` flag. Expected validation,
+authorization, lifecycle, payment, RSVP, and check-in failures are returned as
+values at application/server-function boundaries. Uncaught programming errors
+remain exceptions and are mapped to `INTERNAL_ERROR` at the external boundary.
+
+The canonical error codes are:
 
 ``` text
 UNAUTHENTICATED
@@ -40,9 +54,17 @@ ALREADY_CHECKED_IN
 NOT_INVITED_TO_EVENT
 PAYMENT_PENDING
 PAYMENT_NOT_CONFIRMED
+EXTERNAL_SERVICE_UNAVAILABLE
+INTERNAL_ERROR
 ```
 
-UI may localize friendly copy.
+UI code receives only the stable code, localized-safe message, safe field
+names/details, and retryability. Provider adapters must first normalize SDK
+failures into transport-neutral kinds; raw provider errors, payloads, causes,
+request values, tokens, and secrets are never returned to UI or copied into
+error reports. Sentry integration consumes a sanitized event built from the
+error code and an allowlist of non-PII correlation fields; Sentry SDK setup is
+owned by `FOUND-005`.
 
 ## 3. Important Mutation Contracts
 
