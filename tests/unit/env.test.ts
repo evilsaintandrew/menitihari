@@ -13,6 +13,25 @@ describe("parseEnv", () => {
       NODE_ENV: "development",
       NEXT_PUBLIC_APP_URL: "https://menitihari.example",
       DATABASE_URL: "postgresql://localhost/menitihari",
+      SENTRY_DSN: undefined,
+      NEXT_PUBLIC_SENTRY_DSN: undefined,
+      SENTRY_ENVIRONMENT: undefined,
+    });
+  });
+
+  it("parses optional Sentry configuration and accepts empty DSNs", () => {
+    expect(
+      parseEnv({
+        NEXT_PUBLIC_APP_URL: "https://menitihari.example",
+        DATABASE_URL: "postgresql://localhost/menitihari",
+        SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+        NEXT_PUBLIC_SENTRY_DSN: "",
+        SENTRY_ENVIRONMENT: "production",
+      }),
+    ).toMatchObject({
+      SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+      NEXT_PUBLIC_SENTRY_DSN: undefined,
+      SENTRY_ENVIRONMENT: "production",
     });
   });
 

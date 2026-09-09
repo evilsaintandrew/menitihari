@@ -134,6 +134,12 @@ Health signals:
 -   payment webhook errors;
 -   media failures.
 
+The application exposes `GET /api/health` as a liveness check and
+`GET /api/ready` as a database-readiness check. Both responses are
+`no-store` and contain only a status value; readiness returns HTTP 503
+without exposing dependency or configuration details when PostgreSQL is
+unavailable.
+
 Use structured logs + Sentry. No Prometheus/Grafana requirement for MVP.
 
 ## 12. Incident Priorities

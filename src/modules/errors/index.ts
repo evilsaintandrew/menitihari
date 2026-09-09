@@ -22,3 +22,9 @@ export {
   type ErrorReportContext,
   type SafeSentryEvent,
 } from "./reporting";
+export {
+  captureSanitizedError,
+  captureSentryEvent,
+  createSentryOptions,
+  sanitizeSentryEvent,
+} from "./sentry";
