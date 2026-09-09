@@ -1,0 +1,63 @@
+name: Implementation Ticket
+description: Execute one approved backlog ticket using its stable ticket ID.
+title: "[TICKET-ID] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this issue as the live execution record. The backlog Markdown remains the stable specification; do not copy-edit it merely to track status.
+
+  - type: input
+    id: ticket
+    attributes:
+      label: Backlog ticket
+      description: Stable ticket ID from `backlog/`.
+      placeholder: GUEST-003
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Backlog source
+      description: File/section containing the approved ticket.
+      placeholder: backlog/04-events-guests.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / readiness
+      description: Confirm dependencies are Done or explain an explicit waiver/block.
+      placeholder: "Dependencies complete: FOUND-..., AUTH-..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: ux
+    attributes:
+      label: UX references
+      description: WF IDs for user-facing work, or N/A.
+      placeholder: WF-09, WF-10
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: ready
+    attributes:
+      label: Ready gate
+      options:
+        - label: Acceptance criteria are sufficiently specific.
+          required: true
+        - label: Required dependencies are complete or explicitly waived.
+          required: true
+        - label: No known unresolved product/architecture decision blocks implementation.
+          required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Execution notes
+      description: Optional implementation context, links, or constraints that do not belong in the source-of-truth spec.
