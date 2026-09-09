@@ -34,6 +34,7 @@ v2 implementation baseline.
 17. `docs/WIREFRAMES_BATCH_4.md` --- low-fidelity secondary-product wireframes for guest import, guestbook moderation, media/music, e-angpao, sharing/privacy, export, grace, and destructive deletion flows.
 
 18. `docs/WIREFRAMES_INDEX.md` --- consolidated index and cross-batch implementation invariants for the complete MVP low-fidelity wireframe set.
+19. `docs/UI_COMPONENT_CONTRACTS.md` --- shared UI/domain presentation contracts and authority boundaries.
 
 
 ## Implementation Reconciliation

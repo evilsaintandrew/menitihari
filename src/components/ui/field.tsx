@@ -1,0 +1,24 @@
+import type { LabelHTMLAttributes, ReactNode } from "react";
+
+import { cn } from "./cn";
+
+export function Field({ className, ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
+  return <label className={cn("ui-field", className)} {...props} />;
+}
+
+export function FieldLabel({ children, required = false }: { children: ReactNode; required?: boolean }) {
+  return (
+    <span className="ui-field-label">
+      {children}
+      {required && <span aria-hidden="true" className="ui-required">*</span>}
+    </span>
+  );
+}
+
+export function FieldHint({ children }: { children: ReactNode }) {
+  return <span className="ui-field-hint">{children}</span>;
+}
+
+export function FieldError({ id, children }: { id?: string; children: ReactNode }) {
+  return <span className="ui-field-error" id={id} role="alert">{children}</span>;
+}
