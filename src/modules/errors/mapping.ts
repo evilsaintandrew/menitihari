@@ -18,8 +18,8 @@ export interface NormalizedProviderError {
 }
 
 /**
- * Provider adapters may use this transport-neutral error before FOUND-006
- * introduces the provider interfaces. Its message never includes payloads.
+ * Provider adapters use this transport-neutral error at the provider boundary.
+ * Its message never includes payloads.
  */
 export class ProviderError extends Error {
   readonly name = "ProviderError";
