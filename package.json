@@ -10,15 +10,25 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "pnpm db:generate",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "pretypecheck": "pnpm db:generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:generate": "node scripts/generate-prisma.mjs",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:status": "prisma migrate status"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "next": "16.3.4",
+    "pg": "8.16.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "4.5.4"
@@ -26,11 +36,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "26.5.0",
+    "@types/pg": "8.15.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
+    "dotenv": "17.4.2",
     "eslint": "9.39.1",
     "eslint-config-next": "16.3.4",
     "postcss": "8.5.28",
+    "prisma": "7.10.0",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vitest": "5.0.0"

@@ -1,0 +1,824 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountDeletionState {
+  ACTIVE
+  DELETION_COOLING_OFF
+  DELETION_COMMITTED
+  PURGED
+}
+
+enum InvitationRole {
+  OWNER
+}
+
+enum PublicationState {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum CommercialState {
+  TRIAL
+  TRIAL_EXPIRED
+  PAID_ACTIVE
+  GRACE
+  DELETION_PENDING
+  DELETED
+}
+
+enum EventVisibility {
+  GENERIC
+  PERSONALIZED_ONLY
+}
+
+enum GuestEventState {
+  ACTIVE
+  REMOVED
+}
+
+enum GuestAccessCredentialState {
+  ISSUED
+  USED
+  REVOKED
+  EXPIRED
+}
+
+enum StaffGrantState {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum RsvpStatus {
+  PENDING
+  ATTENDING
+  NOT_ATTENDING
+}
+
+enum RsvpSource {
+  PERSONALIZED
+  PUBLIC
+  OWNER
+}
+
+enum PublicRsvpApprovalState {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendanceState {
+  NOT_CHECKED_IN
+  CHECKED_IN
+  CORRECTED_CHECKED_IN
+}
+
+enum ActorType {
+  OWNER
+  STAFF
+  SYSTEM
+  GUEST
+}
+
+enum QrCredentialState {
+  ACTIVE
+  REVOKED
+}
+
+enum MediaAssetType {
+  IMAGE
+  AUDIO
+  QRIS
+}
+
+enum MediaAssetState {
+  TEMP_UPLOADED
+  VALIDATING
+  READY
+  REJECTED
+  DELETE_PENDING
+  DELETED
+  EXPIRED_ORPHAN
+}
+
+enum MediaVariantKind {
+  THUMB
+  MEDIUM
+  LARGE
+  PLAYBACK
+}
+
+enum GiftMethodType {
+  BANK
+  E_WALLET
+  QRIS
+}
+
+enum PaymentOrderState {
+  CREATED
+  PENDING
+  SUCCEEDED
+  EXPIRED
+  FAILED
+  REFUND_REVIEW
+  REFUNDED
+}
+
+enum PaymentEventType {
+  PAYMENT_PENDING
+  PAYMENT_SUCCEEDED
+  PAYMENT_EXPIRED
+  PAYMENT_FAILED
+  REFUND_REVIEW
+  REFUNDED
+}
+
+enum JobState {
+  PENDING
+  RUNNING
+  RETRY_WAIT
+  SUCCEEDED
+  DEAD_LETTER
+}
+
+enum EmailDeliveryState {
+  QUEUED
+  PROVIDER_ACCEPTED
+  SENT
+  DELIVERED
+  BOUNCED
+  COMPLAINED
+  FAILED
+}
+
+enum WishState {
+  SUBMITTED
+  PENDING_REVIEW
+  PUBLISHED
+  HIDDEN
+  DELETED
+}
+
+enum ExportFormat {
+  CSV
+  XLSX
+}
+
+enum ExportJobState {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  emailVerifiedAt     DateTime?            @map("email_verified_at") @db.Timestamptz(3)
+  deletionState       AccountDeletionState @default(ACTIVE) @map("deletion_state")
+  deletionRequestedAt DateTime?            @map("deletion_requested_at") @db.Timestamptz(3)
+  deletionCommittedAt DateTime?            @map("deletion_committed_at") @db.Timestamptz(3)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitationMemberships InvitationMember[]
+  ownedInvitations      Invitation[]       @relation("InvitationOwner")
+  emailDeliveries       EmailDelivery[]
+  requestedExports      ExportJob[]
+  auditEvents           AuditEvent[]       @relation("AuditActorUser")
+}
+
+model Invitation {
+  id                   String           @id @default(cuid())
+  ownerFacingTitle     String           @map("owner_facing_title")
+  coupleDisplayName1   String           @map("couple_display_name_1")
+  coupleDisplayName2   String           @map("couple_display_name_2")
+  fullNames            Json?            @map("full_names")
+  parentFields         Json?            @map("parent_fields")
+  language             String           @default("id")
+  timezone             String           @default("Asia/Jakarta")
+  themeId              String           @map("theme_id")
+  themeVersion         String           @map("theme_version")
+  themeConfig          Json             @map("theme_config")
+  publicationState     PublicationState @default(DRAFT) @map("publication_state")
+  commercialState      CommercialState  @default(TRIAL) @map("commercial_state")
+  trialStartedAt       DateTime         @map("trial_started_at") @db.Timestamptz(3)
+  trialEndsAt          DateTime         @map("trial_ends_at") @db.Timestamptz(3)
+  paidAt               DateTime?        @map("paid_at") @db.Timestamptz(3)
+  activeUntil          DateTime?        @map("active_until") @db.Timestamptz(3)
+  graceEndsAt          DateTime?        @map("grace_ends_at") @db.Timestamptz(3)
+  priceLockedAmount    Decimal?         @map("price_locked_amount") @db.Decimal(12, 2)
+  currency             String           @default("IDR")
+  primaryEventId       String?          @map("primary_event_id")
+  genericAccessEnabled Boolean          @default(true) @map("generic_access_enabled")
+  sharedPasswordHash   String?          @map("shared_password_hash")
+  accessVersion        Int              @default(1) @map("access_version")
+  guestSharingEnabled  Boolean          @default(true) @map("guest_sharing_enabled")
+  rsvpEnabled          Boolean          @default(true) @map("rsvp_enabled")
+  publicRsvpEnabled    Boolean          @default(false) @map("public_rsvp_enabled")
+  guestbookEnabled     Boolean          @default(true) @map("guestbook_enabled")
+  guestbookModerated   Boolean          @default(false) @map("guestbook_moderated")
+  version              Int              @default(1)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  ownerId              String           @map("owner_id")
+
+  owner            User                        @relation("InvitationOwner", fields: [ownerId], references: [id])
+  members          InvitationMember[]
+  slugs            InvitationSlug[]
+  content          InvitationContent?
+  events           Event[]
+  guests           Guest[]
+  guestGroups      GuestGroup[]
+  passwordSessions InvitationPasswordSession[]
+  guestSessions    GuestSession[]
+  staffGrants      StaffGrant[]
+  wishes           Wish[]
+  mediaAssets      MediaAsset[]
+  giftMethods      GiftMethod[]
+  paymentOrders    PaymentOrder[]
+  emailDeliveries  EmailDelivery[]
+  auditEvents      AuditEvent[]
+  exportJobs       ExportJob[]
+  primaryEvent     Event?                      @relation("PrimaryEvent", fields: [primaryEventId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([commercialState, trialEndsAt])
+  @@index([publicationState])
+  @@map("invitations")
+}
+
+model InvitationMember {
+  invitationId String         @map("invitation_id")
+  userId       String         @map("user_id")
+  role         InvitationRole @default(OWNER)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([invitationId, userId])
+  @@index([userId, role])
+  @@map("invitation_members")
+}
+
+model InvitationSlug {
+  id           String   @id @default(cuid())
+  invitationId String   @map("invitation_id")
+  slug         String   @unique
+  isCanonical  Boolean  @default(true) @map("is_canonical")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@index([invitationId, isCanonical])
+  @@map("invitation_slugs")
+}
+
+model InvitationContent {
+  id                     String   @id @default(cuid())
+  invitationId           String   @unique @map("invitation_id")
+  opening                Json?
+  closing                Json?
+  quoteOrPrayer          Json?    @map("quote_or_prayer")
+  hashtag                String?
+  sections               Json?
+  sectionOrder           Json?    @map("section_order")
+  coverMediaAssetId      String?  @map("cover_media_asset_id")
+  shareCoverMediaAssetId String?  @map("share_cover_media_asset_id")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@map("invitation_content")
+}
+
+model Event {
+  id              String          @id @default(cuid())
+  invitationId    String          @map("invitation_id")
+  name            String
+  startsAt        DateTime        @map("starts_at") @db.Timestamptz(3)
+  endsAt          DateTime?       @map("ends_at") @db.Timestamptz(3)
+  timezone        String
+  isPrimary       Boolean         @default(false) @map("is_primary")
+  visibility      EventVisibility @default(GENERIC)
+  venue           String?
+  address         String?
+  mapsUrl         String?         @map("maps_url")
+  locationNote    String?         @map("location_note")
+  livestreamUrl   String?         @map("livestream_url")
+  dressCode       String?         @map("dress_code")
+  contactFields   Json?           @map("contact_fields")
+  rsvpEnabled     Boolean         @default(true) @map("rsvp_enabled")
+  rsvpClosesAt    DateTime?       @map("rsvp_closes_at") @db.Timestamptz(3)
+  checkInOpensAt  DateTime?       @map("check_in_opens_at") @db.Timestamptz(3)
+  checkInClosesAt DateTime?       @map("check_in_closes_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?       @map("cancelled_at") @db.Timestamptz(3)
+  archivedAt      DateTime?       @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation       Invitation        @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  primaryFor       Invitation[]      @relation("PrimaryEvent")
+  guestEvents      GuestEvent[]
+  staffGrantEvents StaffGrantEvent[]
+
+  @@index([invitationId, startsAt])
+  @@index([invitationId, archivedAt])
+  @@map("events")
+}
+
+model GuestGroup {
+  id           String   @id @default(cuid())
+  invitationId String   @map("invitation_id")
+  name         String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  guests     Guest[]
+
+  @@unique([invitationId, name])
+  @@map("guest_groups")
+}
+
+model Guest {
+  id                  String    @id @default(cuid())
+  invitationId        String    @map("invitation_id")
+  displayName         String    @map("display_name")
+  normalizedPhone     String?   @map("normalized_phone")
+  displayPhone        String?   @map("display_phone")
+  notes               String?
+  groupId             String?   @map("group_id")
+  defaultMaxPartySize Int?      @map("default_max_party_size")
+  distributionStatus  String?   @map("distribution_status")
+  lastViewedAt        DateTime? @map("last_viewed_at") @db.Timestamptz(3)
+  archivedAt          DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation            Invitation                  @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  group                 GuestGroup?                 @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  eventAssignments      GuestEvent[]
+  activationCredentials GuestActivationCredential[]
+  sessions              GuestSession[]
+  wishes                Wish[]
+  qrCredentials         QRCredential[]
+
+  @@index([invitationId, archivedAt])
+  @@index([invitationId, normalizedPhone])
+  @@map("guests")
+}
+
+model GuestEvent {
+  id                 String                  @id @default(cuid())
+  guestId            String                  @map("guest_id")
+  eventId            String                  @map("event_id")
+  state              GuestEventState         @default(ACTIVE)
+  maxPartySize       Int                     @map("max_party_size")
+  rsvpEligible       Boolean                 @default(true) @map("rsvp_eligible")
+  checkInEligible    Boolean                 @default(true) @map("check_in_eligible")
+  publicRsvpApproval PublicRsvpApprovalState @default(PENDING) @map("public_rsvp_approval")
+  removedAt          DateTime?               @map("removed_at") @db.Timestamptz(3)
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  guest      Guest       @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rsvp       RSVP?
+  attendance Attendance?
+
+  @@unique([guestId, eventId])
+  @@index([eventId, state])
+  @@map("guest_events")
+}
+
+model GuestActivationCredential {
+  id        String                     @id @default(cuid())
+  guestId   String                     @map("guest_id")
+  version   Int
+  digest    String                     @unique
+  state     GuestAccessCredentialState @default(ISSUED)
+  createdAt DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  usedAt    DateTime?                  @map("used_at") @db.Timestamptz(3)
+  revokedAt DateTime?                  @map("revoked_at") @db.Timestamptz(3)
+  expiresAt DateTime?                  @map("expires_at") @db.Timestamptz(3)
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@unique([guestId, version])
+  @@index([guestId, state])
+  @@map("guest_activation_credentials")
+}
+
+model GuestSession {
+  id            String    @id @default(cuid())
+  guestId       String    @map("guest_id")
+  invitationId  String    @map("invitation_id")
+  sessionDigest String    @unique @map("session_digest")
+  accessVersion Int       @map("access_version")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  guest      Guest      @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@index([guestId, expiresAt])
+  @@index([invitationId, expiresAt])
+  @@map("guest_sessions")
+}
+
+model InvitationPasswordSession {
+  id            String    @id @default(cuid())
+  invitationId  String    @map("invitation_id")
+  sessionDigest String    @unique @map("session_digest")
+  accessVersion Int       @map("access_version")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@index([invitationId, expiresAt])
+  @@map("invitation_password_sessions")
+}
+
+model StaffGrant {
+  id               String          @id @default(cuid())
+  invitationId     String          @map("invitation_id")
+  label            String
+  credentialDigest String          @unique @map("credential_digest")
+  version          Int             @default(1)
+  state            StaffGrantState @default(ACTIVE)
+  validFrom        DateTime        @map("valid_from") @db.Timestamptz(3)
+  validUntil       DateTime        @map("valid_until") @db.Timestamptz(3)
+  revokedAt        DateTime?       @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  invitation Invitation        @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  events     StaffGrantEvent[]
+  sessions   StaffSession[]
+
+  @@index([invitationId, state])
+  @@map("staff_grants")
+}
+
+model StaffGrantEvent {
+  staffGrantId String @map("staff_grant_id")
+  eventId      String @map("event_id")
+
+  staffGrant StaffGrant @relation(fields: [staffGrantId], references: [id], onDelete: Cascade)
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([staffGrantId, eventId])
+  @@map("staff_grant_events")
+}
+
+model StaffSession {
+  id            String    @id @default(cuid())
+  staffGrantId  String    @map("staff_grant_id")
+  sessionDigest String    @unique @map("session_digest")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  staffGrant StaffGrant @relation(fields: [staffGrantId], references: [id], onDelete: Cascade)
+
+  @@index([staffGrantId, expiresAt])
+  @@map("staff_sessions")
+}
+
+model RSVP {
+  id                 String     @id @default(cuid())
+  guestEventId       String     @unique @map("guest_event_id")
+  status             RsvpStatus @default(PENDING)
+  attendanceCount    Int?       @map("attendance_count")
+  notAttendingReason String?    @map("not_attending_reason")
+  source             RsvpSource @default(PERSONALIZED)
+  ownerOverride      Boolean    @default(false) @map("owner_override")
+  updatedBy          String?    @map("updated_by")
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  guestEvent GuestEvent @relation(fields: [guestEventId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("rsvps")
+}
+
+model Wish {
+  id                String    @id @default(cuid())
+  invitationId      String    @map("invitation_id")
+  guestId           String?   @map("guest_id")
+  senderDisplayName String    @map("sender_display_name")
+  message           String
+  state             WishState @default(SUBMITTED)
+  submittedAt       DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  hiddenAt          DateTime? @map("hidden_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  guest      Guest?     @relation(fields: [guestId], references: [id], onDelete: SetNull)
+
+  @@unique([invitationId, guestId])
+  @@index([invitationId, state, submittedAt])
+  @@map("wishes")
+}
+
+model Attendance {
+  id               String          @id @default(cuid())
+  guestEventId     String          @unique @map("guest_event_id")
+  state            AttendanceState @default(NOT_CHECKED_IN)
+  actualCount      Int?            @map("actual_count")
+  firstCheckedInAt DateTime?       @map("first_checked_in_at") @db.Timestamptz(3)
+  lastCorrectionAt DateTime?       @map("last_correction_at") @db.Timestamptz(3)
+  varianceFlag     Boolean         @default(false) @map("variance_flag")
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  guestEvent GuestEvent        @relation(fields: [guestEventId], references: [id], onDelete: Cascade)
+  audits     AttendanceAudit[]
+
+  @@map("attendance")
+}
+
+model AttendanceAudit {
+  id           String    @id @default(cuid())
+  attendanceId String    @map("attendance_id")
+  eventId      String    @map("event_id")
+  actorType    ActorType @map("actor_type")
+  actorId      String?   @map("actor_id")
+  action       String
+  beforeState  Json?     @map("before_state")
+  afterState   Json?     @map("after_state")
+  reason       String?
+  requestKey   String?   @map("request_key")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId, createdAt])
+  @@index([eventId, createdAt])
+  @@map("attendance_audits")
+}
+
+model QRCredential {
+  id        String            @id @default(cuid())
+  guestId   String            @map("guest_id")
+  version   Int
+  digest    String            @unique
+  state     QrCredentialState @default(ACTIVE)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt DateTime?         @map("revoked_at") @db.Timestamptz(3)
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@unique([guestId, version])
+  @@map("qr_credentials")
+}
+
+model MediaAsset {
+  id                String          @id @default(cuid())
+  invitationId      String          @map("invitation_id")
+  type              MediaAssetType
+  originalKey       String          @map("original_key")
+  state             MediaAssetState @default(TEMP_UPLOADED)
+  sizeBytes         BigInt?         @map("size_bytes")
+  mimeType          String?         @map("mime_type")
+  validatedMetadata Json?           @map("validated_metadata")
+  uploadedAt        DateTime        @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+  finalizedAt       DateTime?       @map("finalized_at") @db.Timestamptz(3)
+  deletionQueuedAt  DateTime?       @map("deletion_queued_at") @db.Timestamptz(3)
+  deletedAt         DateTime?       @map("deleted_at") @db.Timestamptz(3)
+
+  invitation  Invitation     @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  variants    MediaVariant[]
+  giftMethods GiftMethod[]
+
+  @@index([invitationId, state])
+  @@map("media_assets")
+}
+
+model MediaVariant {
+  id           String           @id @default(cuid())
+  mediaAssetId String           @map("media_asset_id")
+  kind         MediaVariantKind
+  storageKey   String           @map("storage_key")
+  width        Int?
+  height       Int?
+  durationMs   Int?             @map("duration_ms")
+  sizeBytes    BigInt?          @map("size_bytes")
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaAssetId, kind])
+  @@map("media_variants")
+}
+
+model GiftMethod {
+  id                String         @id @default(cuid())
+  invitationId      String         @map("invitation_id")
+  type              GiftMethodType
+  bankOrWalletLabel String?        @map("bank_or_wallet_label")
+  accountNumber     String?        @map("account_number")
+  accountOwnerName  String?        @map("account_owner_name")
+  qrMediaAssetId    String?        @map("qr_media_asset_id")
+  sortOrder         Int            @default(0) @map("sort_order")
+  active            Boolean        @default(true)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation   Invitation  @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  qrMediaAsset MediaAsset? @relation(fields: [qrMediaAssetId], references: [id], onDelete: SetNull)
+
+  @@index([invitationId, active, sortOrder])
+  @@map("gift_methods")
+}
+
+model PaymentOrder {
+  id                String            @id @default(cuid())
+  invitationId      String            @map("invitation_id")
+  provider          String
+  providerReference String?           @map("provider_reference")
+  amount            Decimal           @db.Decimal(12, 2)
+  currency          String
+  state             PaymentOrderState @default(CREATED)
+  providerExpiresAt DateTime?         @map("provider_expires_at") @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation      Invitation       @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  attempts        PaymentAttempt[]
+  events          PaymentEvent[]
+  financialRecord FinancialRecord?
+
+  @@unique([provider, providerReference])
+  @@index([invitationId, state])
+  @@map("payment_orders")
+}
+
+model PaymentAttempt {
+  id                String            @id @default(cuid())
+  paymentOrderId    String            @map("payment_order_id")
+  providerReference String?           @map("provider_reference")
+  state             PaymentOrderState @default(CREATED)
+  providerExpiresAt DateTime?         @map("provider_expires_at") @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentOrderId, providerReference])
+  @@index([paymentOrderId, state])
+  @@map("payment_attempts")
+}
+
+model PaymentEvent {
+  id               String           @id @default(cuid())
+  paymentOrderId   String           @map("payment_order_id")
+  providerEventId  String?          @map("provider_event_id")
+  dedupFingerprint String           @unique @map("dedup_fingerprint")
+  type             PaymentEventType
+  minimalReference Json?            @map("minimal_reference")
+  receivedAt       DateTime         @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt      DateTime?        @map("processed_at") @db.Timestamptz(3)
+
+  paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentOrderId, providerEventId])
+  @@index([paymentOrderId, receivedAt])
+  @@map("payment_events")
+}
+
+model FinancialRecord {
+  id               String    @id @default(cuid())
+  paymentOrderId   String    @unique @map("payment_order_id")
+  invitationRef    String    @map("invitation_ref")
+  transactionRef   String    @map("transaction_ref")
+  amount           Decimal   @db.Decimal(12, 2)
+  currency         String
+  paymentDate      DateTime? @map("payment_date") @db.Timestamptz(3)
+  refundAmount     Decimal?  @map("refund_amount") @db.Decimal(12, 2)
+  duplicatePayment Boolean   @default(false) @map("duplicate_payment")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+
+  @@index([transactionRef])
+  @@map("financial_records")
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  type           String
+  priority       Int       @default(0)
+  state          JobState  @default(PENDING)
+  dedupKey       String?   @unique @map("dedup_key")
+  payload        Json
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5) @map("max_attempts")
+  runAfter       DateTime  @default(now()) @map("run_after") @db.Timestamptz(3)
+  leaseOwner     String?   @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  heartbeatAt    DateTime? @map("heartbeat_at") @db.Timestamptz(3)
+  timeoutAt      DateTime? @map("timeout_at") @db.Timestamptz(3)
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  @@index([state, runAfter, priority])
+  @@index([leaseExpiresAt])
+  @@map("jobs")
+}
+
+model EmailDelivery {
+  id                 String             @id @default(cuid())
+  invitationId       String?            @map("invitation_id")
+  userId             String?            @map("user_id")
+  templateKey        String             @map("template_key")
+  providerMessageId  String?            @map("provider_message_id")
+  state              EmailDeliveryState @default(QUEUED)
+  queuedAt           DateTime           @default(now()) @map("queued_at") @db.Timestamptz(3)
+  sentAt             DateTime?          @map("sent_at") @db.Timestamptz(3)
+  deliveredAt        DateTime?          @map("delivered_at") @db.Timestamptz(3)
+  suppressionOutcome String?            @map("suppression_outcome")
+
+  invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([invitationId, state])
+  @@index([userId, state])
+  @@map("email_deliveries")
+}
+
+model EmailSuppression {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  reason       String
+  suppressedAt DateTime  @default(now()) @map("suppressed_at") @db.Timestamptz(3)
+  correctedAt  DateTime? @map("corrected_at") @db.Timestamptz(3)
+
+  @@map("email_suppressions")
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  userId       String?  @map("user_id")
+  invitationId String?  @map("invitation_id")
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  action       String
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  actor      User?       @relation("AuditActorUser", fields: [userId], references: [id], onDelete: SetNull)
+  invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([invitationId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_events")
+}
+
+model ExportJob {
+  id            String         @id @default(cuid())
+  invitationId  String         @map("invitation_id")
+  requestedById String         @map("requested_by_id")
+  format        ExportFormat
+  state         ExportJobState @default(PENDING)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt   DateTime?      @map("completed_at") @db.Timestamptz(3)
+
+  invitation  Invitation      @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  requestedBy User            @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  artifact    ExportArtifact?
+
+  @@index([invitationId, state])
+  @@map("export_jobs")
+}
+
+model ExportArtifact {
+  id          String   @id @default(cuid())
+  exportJobId String   @unique @map("export_job_id")
+  storageKey  String   @map("storage_key")
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  exportJob ExportJob @relation(fields: [exportJobId], references: [id], onDelete: Cascade)
+
+  @@map("export_artifacts")
+}
