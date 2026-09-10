@@ -13,6 +13,7 @@ describe("parseEnv", () => {
       NODE_ENV: "development",
       NEXT_PUBLIC_APP_URL: "https://menitihari.example",
       DATABASE_URL: "postgresql://localhost/menitihari",
+      BETTER_AUTH_SECRET: undefined,
       SENTRY_DSN: undefined,
       NEXT_PUBLIC_SENTRY_DSN: undefined,
       SENTRY_ENVIRONMENT: undefined,
@@ -57,5 +58,14 @@ describe("parseEnv", () => {
           DATABASE_URL: "https://example.com/database",
         }),
     ).toThrow("PostgreSQL connection URL");
+  });
+
+  it("rejects a too-short Better Auth secret", () => {
+    expect(() => parseEnv({
+      NODE_ENV: "production",
+      NEXT_PUBLIC_APP_URL: "https://menitihari.example",
+      DATABASE_URL: "postgresql://localhost/menitihari",
+      BETTER_AUTH_SECRET: "too-short",
+    })).toThrow("BETTER_AUTH_SECRET");
   });
 });

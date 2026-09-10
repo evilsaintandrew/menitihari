@@ -1,0 +1,10 @@
+export const AUTH_GENERIC_ERROR_MESSAGE =
+  "Tidak dapat memproses permintaan. Coba lagi sebentar.";
+
+export const SIGNUP_GENERIC_ERROR_MESSAGE =
+  "Tidak dapat membuat akun dengan data tersebut. Coba masuk atau gunakan email lain.";
+
+export const LOGIN_GENERIC_ERROR_MESSAGE = "Email atau password tidak valid.";
+
+export const AUTH_RATE_LIMIT_MESSAGE =
+  "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.";

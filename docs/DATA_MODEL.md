@@ -7,8 +7,11 @@ slightly, but invariants must remain.
 
 ### User
 
-Key fields: `id`, `email`, `email_verified_at`, timestamps,
-account-deletion fields.
+Key fields: `id`, `name`, `email`, Better Auth's `email_verified` flag,
+the application `email_verified_at` timestamp, timestamps, and
+account-deletion fields. Better Auth's `account`, `session`, and
+`verification` records are persisted separately; provider credentials and
+session tokens remain behind the auth adapter.
 
 ### InvitationMember
 
