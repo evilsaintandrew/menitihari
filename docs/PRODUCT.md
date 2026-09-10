@@ -112,7 +112,8 @@ After grace, deletion/purge proceeds according to architecture.
 -   Theme selection follows basic info, then editor.
 -   Onboarding checklist/progress is helpful but non-blocking.
 -   One account per email.
--   User may change email after verifying the new address.
+-   Self-service account email changes are not included in MVP; the verified
+    email remains the account identifier.
 -   Account recovery may be assisted by support after adequate
     verification; payment screenshot alone is insufficient.
 -   No ownership transfer, even as normal support operation.

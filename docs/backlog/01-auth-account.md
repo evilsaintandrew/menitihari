@@ -85,9 +85,12 @@ Give users session security controls.
 
 -   [ ] Add unit/integration/E2E coverage appropriate to the risk.
 
-## AUTH-005 --- Implement account email change
+## AUTH-005 --- Account email change (removed from MVP)
 
-**Priority:** P0 **Depends on:** AUTH-002 **Status:** Todo
+**Priority:** Post-MVP **Depends on:** AUTH-002 **Status:** Cancelled — out of MVP
+
+This ticket is retained as a stable future-scope record. Do not implement it
+without an explicit product/security decision and a new implementation plan.
 
 ### Goal
 

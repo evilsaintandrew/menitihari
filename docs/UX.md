@@ -826,7 +826,6 @@ Avoid desktop-only critical operations.
 -   Invitation List
 -   Create Invitation
 -   Account Settings
--   Change Email
 -   Security/Sessions
 -   Delete Account
 

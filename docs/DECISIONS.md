@@ -143,3 +143,11 @@ conflict.
 
 **Decision:** invitations are link-accessible, not search-discoverable.\
 **Why:** aligns with expected wedding-invitation privacy.
+
+## D026 --- No self-service account email change in MVP
+
+**Decision:** MVP does not include a self-service account email change flow;
+the verified email remains the account identifier. Any future email migration
+requires an explicit product/security decision and a new ticket.\
+**Why:** avoids adding identity-recovery, uniqueness, verification, and
+security-notification complexity to the MVP account surface.
