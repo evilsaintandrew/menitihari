@@ -20,6 +20,7 @@ export * from "./publication";
 export * from "./slugs";
 export * from "./deletion";
 export * from "./dashboard";
+export * from "./content";
 export { publicInvitationCacheTag } from "./public-cache";
 export { ownerMembershipWhere } from "./authorization";
 
