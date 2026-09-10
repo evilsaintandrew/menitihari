@@ -22,7 +22,7 @@ export default async function InvitationThemeHandoffPage({
     <main className="auth-page invitation-create-page">
       <div className="auth-container invitation-create-container">
         <header className="auth-header">
-          <TextLink href="/" aria-label="Kembali ke beranda">←</TextLink>
+          <TextLink href="/invitations" aria-label="Kembali ke daftar undangan">←</TextLink>
           <span className="ui-wordmark"><span aria-hidden="true" className="ui-wordmark-mark">✦</span> Menitihari</span>
         </header>
         <Card>
@@ -35,7 +35,7 @@ export default async function InvitationThemeHandoffPage({
             <p>Semua 10 tema termasuk dalam trial. Pemilih tema akan tersedia di langkah berikutnya.</p>
             <TextLink className="ui-button ui-button-primary" href={`/invitations/${id}/publish`}>Lihat kesiapan publikasi</TextLink>
             <TextLink className="ui-button ui-button-secondary" href={`/invitations/${id}/settings`}>Atur alamat link publik</TextLink>
-            <TextLink className="ui-button ui-button-secondary" href="/">Kembali ke beranda</TextLink>
+            <TextLink className="ui-button ui-button-secondary" href="/invitations">Kembali ke daftar undangan</TextLink>
           </CardContent>
         </Card>
       </div>
