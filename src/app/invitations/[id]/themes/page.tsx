@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { Card, CardContent, CardHeader, TextLink } from "@/components/ui";
 import { auth } from "@/lib/auth";
+import { getInvitationForOwner } from "@/modules/invitations";
 import { prisma } from "@/server/db";
 
 export default async function InvitationThemeHandoffPage({
@@ -14,10 +15,7 @@ export default async function InvitationThemeHandoffPage({
   if (!session?.user) redirect("/login");
 
   const { id } = await params;
-  const invitation = await prisma.invitation.findFirst({
-    where: { id, ownerId: session.user.id },
-    select: { coupleDisplayName1: true, coupleDisplayName2: true },
-  });
+  const invitation = await getInvitationForOwner(prisma, session.user.id, id);
   if (!invitation) notFound();
 
   return (

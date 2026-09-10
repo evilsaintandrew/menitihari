@@ -72,6 +72,8 @@ export interface CreateInvitationOptions {
 
 type InvitationDatabase = Pick<PrismaClient, "$transaction">;
 
+type InvitationReadDatabase = Pick<PrismaClient, "invitation">;
+
 export function calculateTrialEndsAt(trialStartedAt: Date): Date {
   return new Date(trialStartedAt.getTime() + INVITATION_TRIAL_DURATION_MS);
 }
@@ -79,6 +81,21 @@ export function calculateTrialEndsAt(trialStartedAt: Date): Date {
 /** Convert the date-only WF-04 input to midnight in the invitation timezone. */
 export function mainEventDateToInstant(mainEventDate: string): Date {
   return new Date(`${mainEventDate}T00:00:00+07:00`);
+}
+
+/** Invitation ownership policy: callers authorize through OWNER membership. */
+export async function getInvitationForOwner(
+  database: InvitationReadDatabase,
+  userId: string,
+  invitationId: string,
+): Promise<{ readonly coupleDisplayName1: string; readonly coupleDisplayName2: string } | null> {
+  return database.invitation.findFirst({
+    where: {
+      id: invitationId,
+      members: { some: { userId, role: InvitationRole.OWNER } },
+    },
+    select: { coupleDisplayName1: true, coupleDisplayName2: true },
+  });
 }
 
 export async function createInvitation(
