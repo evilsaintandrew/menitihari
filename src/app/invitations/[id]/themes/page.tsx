@@ -33,6 +33,7 @@ export default async function InvitationThemeHandoffPage({
           </CardHeader>
           <CardContent className="invitation-theme-handoff">
             <p>Semua 10 tema termasuk dalam trial. Pemilih tema akan tersedia di langkah berikutnya.</p>
+            <TextLink className="ui-button ui-button-primary" href={`/invitations/${id}/publish`}>Lihat kesiapan publikasi</TextLink>
             <TextLink className="ui-button ui-button-secondary" href="/">Kembali ke beranda</TextLink>
           </CardContent>
         </Card>

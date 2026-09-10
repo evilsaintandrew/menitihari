@@ -213,6 +213,21 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-create-actions .ui-text-link { justify-self: center; }
 .invitation-theme-handoff { display: grid; gap: 20px; }
 .invitation-theme-handoff p { color: var(--color-ink-muted); }
+.invitation-publish-page { align-items: flex-start; }
+.invitation-publish-container { max-width: 600px; }
+.invitation-publish-content { display: grid; gap: 22px; }
+.invitation-publish-status { align-items: center; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; padding-bottom: 18px; }
+.invitation-publish-status > span, .invitation-publish-privacy h2 { color: var(--color-ink-strong); font-weight: 800; }
+.invitation-publish-checklist { display: grid; gap: 13px; }
+.invitation-publish-check { align-items: center; display: flex; gap: 10px; }
+.invitation-publish-checkmark, .invitation-publish-warning { align-items: center; border-radius: 50%; display: inline-flex; flex: 0 0 24px; font-size: 13px; font-weight: 900; height: 24px; justify-content: center; }
+.invitation-publish-checkmark { background: var(--color-success-surface); color: var(--color-success); }
+.invitation-publish-warning { background: var(--color-warning-surface); color: var(--color-warning); }
+.invitation-publish-check .ui-text-link { margin-left: auto; font-size: 14px; }
+.invitation-publish-privacy { background: var(--color-surface-muted); border-radius: 18px; display: grid; gap: 5px; padding: 17px; }
+.invitation-publish-privacy p { color: var(--color-ink-muted); font-size: 14px; }
+.invitation-publish-actions { display: grid; gap: 14px; }
+.invitation-publish-actions form { display: grid; }
 .verify-email-icon { align-items: center; background: var(--color-accent-sky); border-radius: 50%; color: var(--color-brand); display: grid; font-size: 28px; font-weight: 800; height: 72px; margin: 0 auto 20px; place-items: center; width: 72px; }
 .verify-email-icon-verified { background: var(--color-accent-lime); }
 .security-container { max-width: 640px; }
