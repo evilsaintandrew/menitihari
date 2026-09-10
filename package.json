@@ -25,9 +25,11 @@
     "db:status": "prisma migrate status"
   },
   "dependencies": {
+    "@better-auth/prisma-adapter": "^1.7.3",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@sentry/nextjs": "^10.73.0",
+    "better-auth": "^1.7.3",
     "next": "16.3.4",
     "pg": "8.16.3",
     "react": "19.2.8",

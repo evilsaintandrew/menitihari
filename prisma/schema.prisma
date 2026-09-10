@@ -181,8 +181,11 @@ enum ExportJobState {
 
 model User {
   id                  String               @id @default(cuid())
+  name                String               @default("")
   email               String               @unique
+  emailVerified       Boolean              @default(false) @map("email_verified")
   emailVerifiedAt     DateTime?            @map("email_verified_at") @db.Timestamptz(3)
+  image               String?
   deletionState       AccountDeletionState @default(ACTIVE) @map("deletion_state")
   deletionRequestedAt DateTime?            @map("deletion_requested_at") @db.Timestamptz(3)
   deletionCommittedAt DateTime?            @map("deletion_committed_at") @db.Timestamptz(3)
@@ -191,9 +194,62 @@ model User {
 
   invitationMemberships InvitationMember[]
   ownedInvitations      Invitation[]       @relation("InvitationOwner")
+  accounts              Account[]
+  sessions              Session[]
   emailDeliveries       EmailDelivery[]
   requestedExports      ExportJob[]
   auditEvents           AuditEvent[]       @relation("AuditActorUser")
+}
+
+// Better Auth's standard persistence models. Keep provider credentials and
+// session tokens behind the auth adapter; application code never reads them.
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  token     String    @unique
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  ipAddress String?   @map("ip_address")
+  userAgent String?   @map("user_agent")
+  userId    String    @map("user_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("auth_verifications")
 }
 
 model Invitation {

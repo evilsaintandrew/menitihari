@@ -1,4 +1,4 @@
-import type { LabelHTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, LabelHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "./cn";
 
@@ -15,8 +15,8 @@ export function FieldLabel({ children, required = false }: { children: ReactNode
   );
 }
 
-export function FieldHint({ children }: { children: ReactNode }) {
-  return <span className="ui-field-hint">{children}</span>;
+export function FieldHint({ children, className, ...props }: HTMLAttributes<HTMLSpanElement> & { children: ReactNode }) {
+  return <span className={cn("ui-field-hint", className)} {...props}>{children}</span>;
 }
 
 export function FieldError({ id, children }: { id?: string; children: ReactNode }) {

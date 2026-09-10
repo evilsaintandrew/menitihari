@@ -12,6 +12,7 @@ const envSchema = z.object({
     (value) => value.startsWith("postgresql://") || value.startsWith("postgres://"),
     "must be a PostgreSQL connection URL",
   ),
+  BETTER_AUTH_SECRET: z.string().trim().min(32).optional(),
   SENTRY_DSN: optionalUrl,
   NEXT_PUBLIC_SENTRY_DSN: optionalUrl,
   SENTRY_ENVIRONMENT: z.string().trim().min(1).optional(),
