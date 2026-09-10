@@ -1,6 +1,7 @@
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { Card, CardContent, CardHeader } from "@/components/ui";
+import { isPublicInvitationAvailable } from "@/modules/lifecycle";
 import { resolveInvitationSlug, isInvitationSlugPathSegment } from "@/modules/invitations";
 import { prisma } from "@/server/db";
 
@@ -23,6 +24,7 @@ export default async function PublicInvitationPage({
       coupleDisplayName2: true,
       publicationState: true,
       commercialState: true,
+      trialEndsAt: true,
       genericAccessEnabled: true,
       primaryEvent: { select: { startsAt: true } },
     },
@@ -30,10 +32,7 @@ export default async function PublicInvitationPage({
 
   if (!invitation) notFound();
 
-  const available =
-    invitation.publicationState === "PUBLISHED" &&
-    invitation.genericAccessEnabled &&
-    invitation.commercialState !== "DELETED";
+  const available = isPublicInvitationAvailable(invitation);
 
   return (
     <main className="public-invitation-page">
@@ -43,7 +42,7 @@ export default async function PublicInvitationPage({
           <h1 className="auth-title">
             {available
               ? `${invitation.coupleDisplayName1} & ${invitation.coupleDisplayName2}`
-              : "Undangan ini belum tersedia"}
+              : "Undangan ini sudah tidak tersedia"}
           </h1>
         </CardHeader>
         {available && invitation.primaryEvent && (
