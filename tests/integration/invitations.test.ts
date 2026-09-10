@@ -49,7 +49,6 @@ describe("invitation creation PostgreSQL integration", () => {
         include: { members: true, events: true, content: true },
       });
       expect(invitation).toMatchObject({
-        ownerId: user.id,
         primaryEventId: created.primaryEventId,
         publicationState: PublicationState.DRAFT,
         commercialState: CommercialState.TRIAL,
@@ -67,7 +66,9 @@ describe("invitation creation PostgreSQL integration", () => {
       expect(invitation.content).not.toBeNull();
       expect(await testPrisma!.auditEvent.count({ where: { invitationId: created.id, action: "invitation.created" } })).toBe(1);
     } finally {
-      const invitation = await testPrisma!.invitation.findFirst({ where: { ownerId: user.id } });
+      const invitation = await testPrisma!.invitation.findFirst({
+        where: { members: { some: { userId: user.id, role: InvitationRole.OWNER } } },
+      });
       if (invitation) {
         await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
         await testPrisma!.invitation.delete({ where: { id: invitation.id } });
@@ -87,9 +88,48 @@ describe("invitation creation PostgreSQL integration", () => {
         coupleDisplayName2: "Bima",
         mainEventDate: "2026-12-20",
       })).rejects.toMatchObject({ code: "FORBIDDEN" });
-      expect(await testPrisma!.invitation.count({ where: { ownerId: user.id } })).toBe(0);
+      expect(await testPrisma!.invitation.count({
+        where: { members: { some: { userId: user.id, role: InvitationRole.OWNER } } },
+      })).toBe(0);
     } finally {
       await testPrisma!.user.delete({ where: { id: user.id } });
+    }
+  });
+
+  it.skipIf(!testDatabaseUrl)("enforces exactly one owner membership per invitation", async () => {
+    const owner = await testPrisma!.user.create({
+      data: { email: `membership-owner-${Date.now()}@example.com`, emailVerified: true },
+    });
+    const secondUser = await testPrisma!.user.create({
+      data: { email: `membership-second-${Date.now()}@example.com`, emailVerified: true },
+    });
+    const created = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    });
+
+    try {
+      await expect(testPrisma!.invitationMember.create({
+        data: {
+          invitationId: created.id,
+          userId: secondUser.id,
+          role: InvitationRole.OWNER,
+        },
+      })).rejects.toMatchObject({ code: "P2002" });
+
+      await expect(testPrisma!.invitationMember.delete({
+        where: { invitationId_userId: { invitationId: created.id, userId: owner.id } },
+      })).rejects.toThrow(/exactly one owner membership/);
+
+      await expect(testPrisma!.invitationMember.count({
+        where: { invitationId: created.id, role: InvitationRole.OWNER },
+      })).resolves.toBe(1);
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: created.id } });
+      await testPrisma!.invitation.delete({ where: { id: created.id } });
+      await testPrisma!.user.delete({ where: { id: secondUser.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
     }
   });
 });

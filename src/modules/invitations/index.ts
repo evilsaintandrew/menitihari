@@ -74,6 +74,16 @@ type InvitationDatabase = Pick<PrismaClient, "$transaction">;
 
 type InvitationReadDatabase = Pick<PrismaClient, "invitation">;
 
+/**
+ * Invitation ownership is represented by an active OWNER membership. MVP has
+ * no inactive membership state, so a matching membership row is active.
+ */
+export function ownerMembershipWhere(userId: string): Prisma.InvitationWhereInput {
+  return {
+    members: { some: { userId, role: InvitationRole.OWNER } },
+  };
+}
+
 export function calculateTrialEndsAt(trialStartedAt: Date): Date {
   return new Date(trialStartedAt.getTime() + INVITATION_TRIAL_DURATION_MS);
 }
@@ -92,7 +102,7 @@ export async function getInvitationForOwner(
   return database.invitation.findFirst({
     where: {
       id: invitationId,
-      members: { some: { userId, role: InvitationRole.OWNER } },
+      ...ownerMembershipWhere(userId),
     },
     select: { coupleDisplayName1: true, coupleDisplayName2: true },
   });
@@ -126,7 +136,6 @@ export async function createInvitation(
 
     const invitation = await transaction.invitation.create({
       data: {
-        ownerId: userId,
         ownerFacingTitle,
         coupleDisplayName1: parsed.coupleDisplayName1,
         coupleDisplayName2: parsed.coupleDisplayName2,
