@@ -154,8 +154,18 @@ Behavior: enqueue idempotent export job; return job status.
 ### Delete invitation/account
 
 Auth: owner + recent reauth for account deletion.\
-Behavior: strong confirmation; immediate public-offline semantics;
-schedule deletion workflow.
+Input for account deletion: current password and the exact confirmation
+phrase `HAPUS AKUN`.\
+Behavior: transactionally move the account into
+`DELETION_COOLING_OFF`, set the server-owned `cancellable_until`, move
+owned published invitations to `UNPUBLISHED`, append a minimal audit event,
+and enqueue one deduplicated commit job due at that deadline.\
+Response: account state and `cancellable_until`; the client never derives
+the cooling-off duration.\
+Cancellation is an authenticated transaction valid only before that
+deadline; it returns the account to `ACTIVE` without republishing invitations.
+After the deadline, the commit job marks invitations deleted and enqueues
+the physical purge job; financial records are not modified by this flow.
 
 ## 4. Read Contracts
 

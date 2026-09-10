@@ -22,6 +22,10 @@
 -   Password reset/change revokes other sessions.
 -   Support "logout all devices".
 -   Login/reset attempts use IP + identifier endpoint-specific limits.
+-   Account deletion requires re-entering the current credential password
+    and an exact destructive confirmation phrase.
+-   Account deletion uses a server-owned cooling-off deadline; the client
+    cannot choose or extend it.
 
 ## Authorization
 
@@ -140,3 +144,9 @@ Before launch, verify:
 -   payment idempotency;
 -   account deletion;
 -   backup access controls.
+
+Account deletion must take owned public invitations offline in the same
+transaction as the account state transition. Cancellation must not
+republish them. Deletion jobs contain stable user identifiers and deadlines
+only; passwords, invitation content, financial payloads, and session tokens
+must not be copied into job or audit metadata.

@@ -9,7 +9,8 @@ slightly, but invariants must remain.
 
 Key fields: `id`, `name`, `email`, Better Auth's `email_verified` flag,
 the application `email_verified_at` timestamp, timestamps, and
-account-deletion fields. Better Auth's `account`, `session`, and
+account-deletion fields (`deletion_state`, `deletion_requested_at`,
+`deletion_cancellable_until`, and `deletion_committed_at`). Better Auth's `account`, `session`, and
 `verification` records are persisted separately; provider credentials and
 session tokens remain behind the auth adapter.
 

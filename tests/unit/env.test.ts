@@ -19,6 +19,7 @@ describe("parseEnv", () => {
       SENTRY_DSN: undefined,
       NEXT_PUBLIC_SENTRY_DSN: undefined,
       SENTRY_ENVIRONMENT: undefined,
+      ACCOUNT_DELETION_COOLING_OFF_SECONDS: undefined,
     });
   });
 

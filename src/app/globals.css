@@ -215,6 +215,10 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .security-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .security-password-form { gap: 20px; }
 .security-form-actions { margin-top: 0; padding: 0; }
+.security-deletion-section { gap: 18px; }
+.security-deletion-section .ui-alert { margin-top: -4px; }
+.security-deletion-form { display: grid; gap: 20px; }
+.security-deletion-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .ui-staff-header { align-items: center; background: var(--color-surface); border-bottom: 1px solid var(--color-border); display: flex; gap: 18px; justify-content: space-between; padding: 22px 24px; }
 .ui-staff-header h1 { font-size: 24px; margin-top: 2px; }
 .ui-staff-content { margin: 0 auto; max-width: 760px; padding: 28px 24px 100px; }
