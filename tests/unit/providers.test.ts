@@ -6,6 +6,7 @@ import type {
   ProviderServices,
   StorageProvider,
 } from "@/providers";
+import { createResendEmailService } from "@/providers";
 
 const fakePaymentProvider: PaymentProvider = {
   async createPayment(input) {
@@ -123,5 +124,44 @@ describe("provider adapter contracts", () => {
       status: "DELIVERED",
       occurredAt: new Date("2026-09-09T00:00:00.000Z"),
     });
+  });
+});
+
+describe("Resend email adapter", () => {
+  it("normalizes an accepted provider response without exposing provider payloads", async () => {
+    const requests: Request[] = [];
+    const service = createResendEmailService({
+      apiKey: "re_test_secret",
+      endpoint: "https://resend.example.test/emails",
+      fetchImplementation: async (input, init) => {
+        requests.push(new Request(input, init));
+        return new Response(JSON.stringify({ id: "msg_123" }), { status: 200 });
+      },
+    });
+
+    const result = await service.send({
+      from: "Menitihari <noreply@example.test>",
+      to: ["owner@example.test"],
+      subject: "Verify",
+      text: "Verify this account",
+    });
+
+    expect(result.status).toBe("ACCEPTED");
+    expect(result.providerMessageId).toBe("msg_123");
+    expect(requests[0]?.headers.get("authorization")).toBe("Bearer re_test_secret");
+    expect(await requests[0]!.json()).toMatchObject({ to: ["owner@example.test"], subject: "Verify" });
+  });
+
+  it("maps provider failures to transport-neutral errors", async () => {
+    const service = createResendEmailService({
+      apiKey: "re_test_secret",
+      fetchImplementation: async () => new Response("provider details", { status: 429 }),
+    });
+
+    await expect(service.send({
+      from: "noreply@example.test",
+      to: ["owner@example.test"],
+      subject: "Verify",
+    })).rejects.toMatchObject({ kind: "RATE_LIMITED", provider: "resend" });
   });
 });

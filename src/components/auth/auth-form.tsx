@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import {
@@ -14,7 +15,11 @@ import {
   Input,
   TextLink,
 } from "@/components/ui";
-import { authClient } from "@/lib/auth-client";
+import {
+  authClient,
+  PENDING_VERIFICATION_EMAIL_KEY,
+  VERIFICATION_CALLBACK_URL,
+} from "@/lib/auth-client";
 import {
   AUTH_RATE_LIMIT_MESSAGE,
   displayNameFromEmail,
@@ -27,6 +32,7 @@ import {
 type AuthMode = "login" | "signup";
 
 export function AuthForm({ mode }: { mode: AuthMode }) {
+  const router = useRouter();
   const isSignup = mode === "signup";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,14 +61,27 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
             email: validation.data.email,
             name: displayNameFromEmail(validation.data.email),
             password: validation.data.password,
+            callbackURL: VERIFICATION_CALLBACK_URL,
           })
         : await authClient.signIn.email({
             email: validation.data.email,
             password: validation.data.password,
             rememberMe: true,
+            callbackURL: VERIFICATION_CALLBACK_URL,
           });
 
       if (result.error) {
+        if (
+          !isSignup &&
+          result.error.code === "EMAIL_NOT_VERIFIED"
+        ) {
+          window.sessionStorage.setItem(
+            PENDING_VERIFICATION_EMAIL_KEY,
+            validation.data.email,
+          );
+          router.replace("/verify-email");
+          return;
+        }
         setMessage(
           result.error.status === 429
             ? AUTH_RATE_LIMIT_MESSAGE
@@ -73,7 +92,15 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         return;
       }
 
-      setSuccess(true);
+      if (isSignup) {
+        window.sessionStorage.setItem(
+          PENDING_VERIFICATION_EMAIL_KEY,
+          validation.data.email,
+        );
+        router.replace("/verify-email?sent=1");
+      } else {
+        setSuccess(true);
+      }
     } catch {
       setMessage(isSignup ? SIGNUP_GENERIC_ERROR_MESSAGE : LOGIN_GENERIC_ERROR_MESSAGE);
     } finally {

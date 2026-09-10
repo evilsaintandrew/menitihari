@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const emailSchema = z
+export const authEmailSchema = z
   .string({ error: "Masukkan email yang valid." })
   .trim()
   .toLowerCase()
@@ -12,7 +12,7 @@ const passwordSchema = z
   .max(128, { error: "Password maksimal 128 karakter." });
 
 export const authCredentialsSchema = z.object({
-  email: emailSchema,
+  email: authEmailSchema,
   password: passwordSchema,
 });
 
