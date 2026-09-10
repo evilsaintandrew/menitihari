@@ -37,6 +37,7 @@ Key fields:
 -   `commercial_state`
 -   `trial_started_at`, `trial_ends_at`
 -   `paid_at`, `active_until`, `grace_ends_at`
+-   `deletion_requested_at`, `purge_at`
 -   `price_locked_amount`, `currency`
 -   `primary_event_id`
 -   `generic_access_enabled`
@@ -281,7 +282,9 @@ minimal payload/reference
 Minimal durable record decoupled from guest/invitation PII where
 possible: - transaction reference - amount/currency - payment date -
 refund/duplicate-payment accounting fields - minimal customer/invitation
-reference required by policy
+reference required by policy. Its payment-order link may be cleared when
+the invitation's operational payment data is purged; financial retention
+does not trigger a refund or retain the full invitation record.
 
 ## 12. Jobs and Notifications
 
