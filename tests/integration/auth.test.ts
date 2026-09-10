@@ -47,7 +47,7 @@ describe("Better Auth email/password integration", () => {
       body: { email, name: "Auth integration", password },
       asResponse: true,
     });
-    expect(duplicate.status).toBe(400);
+    expect(duplicate.status).toBe(422);
 
     const wrongPassword = await testAuth!.api.signInEmail({
       body: { email, password: "wrong-password" },
