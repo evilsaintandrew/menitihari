@@ -6,6 +6,7 @@ import { env } from "@/config/env";
 import {
   createPasswordResetEmailSender,
   createVerificationEmailSender,
+  enforcePasswordChangeSessionRevocation,
 } from "@/modules/auth";
 import { createResendEmailService, type EmailService } from "@/providers";
 import { prisma } from "@/server/db";
@@ -70,6 +71,9 @@ export function createAuth(dependencies: AuthDependencies = {}) {
     advanced: {
       useSecureCookies:
         env.NODE_ENV === "production" || env.NEXT_PUBLIC_APP_URL.startsWith("https://"),
+    },
+    hooks: {
+      before: enforcePasswordChangeSessionRevocation,
     },
     plugins: [nextCookies()],
   });

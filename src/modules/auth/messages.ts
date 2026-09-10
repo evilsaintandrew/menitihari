@@ -11,3 +11,9 @@ export const AUTH_RATE_LIMIT_MESSAGE =
 
 export const PASSWORD_RESET_GENERIC_MESSAGE =
   "Jika email terdaftar, kami mengirim tautan reset password.";
+
+export const PASSWORD_CHANGE_ERROR_MESSAGE =
+  "Password belum dapat diubah. Periksa password saat ini lalu coba lagi.";
+
+export const SESSION_REVOCATION_ERROR_MESSAGE =
+  "Sesi belum dapat dicabut. Coba lagi sebentar.";

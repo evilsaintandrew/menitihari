@@ -113,7 +113,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       {message && <Alert tone="danger" title="Permintaan belum berhasil">{message}</Alert>}
       {success && (
         <Alert tone="success" title={isSignup ? "Akun berhasil dibuat" : "Berhasil masuk"}>
-          Sesi aman Anda sudah aktif di perangkat ini.
+          Sesi aman Anda sudah aktif di perangkat ini. <TextLink href="/account/security">Kelola keamanan akun</TextLink>
         </Alert>
       )}
 
