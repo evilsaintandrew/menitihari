@@ -58,7 +58,9 @@ export default async function PublishReadinessPage({
 
             {!isCommerciallyEditable && (
               <Alert tone="warning" title="Publikasi sedang dikunci">
-                Status komersial undangan ini tidak mengizinkan perubahan publikasi saat ini.
+                {readiness.commercialState === "TRIAL_EXPIRED"
+                  ? "Trial undangan ini sudah berakhir. Undangan publik sedang offline dan editor hanya-baca. Data yang sudah dibuat tetap tersimpan."
+                  : "Status komersial undangan ini tidak mengizinkan perubahan publikasi saat ini."}
               </Alert>
             )}
 
@@ -83,7 +85,7 @@ export default async function PublishReadinessPage({
               <p>Undangan tidak diindeks mesin cari.</p>
             </div>
 
-            {!canPublish && !isPublished && (
+            {!canPublish && !isPublished && isCommerciallyEditable && (
               <p className="ui-field-error" id="publish-disabled-hint">
                 Lengkapi syarat di atas sebelum mempublikasikan undangan.
               </p>

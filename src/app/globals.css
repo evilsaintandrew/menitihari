@@ -228,6 +228,10 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-publish-privacy p { color: var(--color-ink-muted); font-size: 14px; }
 .invitation-publish-actions { display: grid; gap: 14px; }
 .invitation-publish-actions form { display: grid; }
+.invitation-settings-container { max-width: 600px; }
+.invitation-settings-form { display: grid; gap: 18px; }
+.public-invitation-page { align-items: center; background: var(--color-surface-muted); display: flex; min-height: 100vh; justify-content: center; padding: 24px; }
+.public-invitation-page > .ui-card { max-width: 640px; width: 100%; }
 .verify-email-icon { align-items: center; background: var(--color-accent-sky); border-radius: 50%; color: var(--color-brand); display: grid; font-size: 28px; font-weight: 800; height: 72px; margin: 0 auto 20px; place-items: center; width: 72px; }
 .verify-email-icon-verified { background: var(--color-accent-lime); }
 .security-container { max-width: 640px; }

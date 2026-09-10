@@ -7,6 +7,7 @@ import {
 import { writeAuditEvent } from "@/modules/audit";
 import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
+import { isCommerciallyEditable } from "@/modules/lifecycle";
 import { ownerMembershipWhere } from "./authorization";
 import { publicInvitationCacheTag } from "@/modules/invitations/public-cache";
 
@@ -49,6 +50,7 @@ const publicationSelect = {
   themeVersion: true,
   publicationState: true,
   commercialState: true,
+  trialEndsAt: true,
   primaryEventId: true,
   primaryEvent: {
     select: {
@@ -65,15 +67,11 @@ type PublicationInvitation = NonNullable<Prisma.Result<
   "findFirst"
 >>;
 
-function isEditableCommercialState(state: CommercialState): boolean {
-  return state === CommercialState.TRIAL || state === CommercialState.PAID_ACTIVE;
-}
-
 function isValidDate(value: Date | null | undefined): boolean {
   return value instanceof Date && Number.isFinite(value.getTime());
 }
 
-function buildReadiness(invitation: PublicationInvitation): PublishReadiness {
+function buildReadiness(invitation: PublicationInvitation, now = new Date()): PublishReadiness {
   const requirements: Record<PublishRequirement, boolean> = {
     coupleNames:
       invitation.coupleDisplayName1.trim().length > 0 &&
@@ -96,7 +94,11 @@ function buildReadiness(invitation: PublicationInvitation): PublishReadiness {
     coupleDisplayName2: invitation.coupleDisplayName2,
     publicationState: invitation.publicationState,
     commercialState: invitation.commercialState,
-    commercialStateAllowsPublication: isEditableCommercialState(invitation.commercialState),
+    commercialStateAllowsPublication: isCommerciallyEditable(
+      invitation.commercialState,
+      invitation.trialEndsAt,
+      now,
+    ),
     requirements,
     missingRequirements,
   };
@@ -141,7 +143,7 @@ async function transitionPublication(
       throw new DomainError(ERROR_CODES.NOT_FOUND);
     }
 
-    if (!isEditableCommercialState(invitation.commercialState)) {
+    if (!isCommerciallyEditable(invitation.commercialState, invitation.trialEndsAt)) {
       throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
     }
 
