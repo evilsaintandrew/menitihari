@@ -118,6 +118,9 @@ No admin UI required.
 -   Product purge enqueues object deletion.
 -   Missing object counts as successful deletion.
 -   Deletion job contains only minimal storage locator.
+-   Voluntary invitation purge uses the server-configured retention window
+    (default 7 days), deletes invitation operational data transactionally,
+    and leaves minimal financial records retained independently.
 -   Export artifacts have bounded retention.
 -   Account deletion commit jobs run only after their server-owned
     `cancellable_until`; cancellation removes the pending commit job.

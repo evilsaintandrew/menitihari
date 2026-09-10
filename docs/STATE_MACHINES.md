@@ -29,6 +29,11 @@ PAID_ACTIVE
 Voluntary/account deletion may take an invitation offline earlier and
 enter deletion workflow according to policy.
 
+For voluntary invitation deletion, any non-final invitation lifecycle state
+may transition to `DELETION_PENDING` immediately. The invitation is
+unpublished in the same transaction; after the server-owned purge deadline,
+the physical purge moves it to the final deleted/inaccessible state.
+
 Rules:
 
 -   `TRIAL` starts at creation.

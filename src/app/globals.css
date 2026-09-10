@@ -230,6 +230,15 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-publish-actions form { display: grid; }
 .invitation-settings-container { max-width: 600px; }
 .invitation-settings-form { display: grid; gap: 18px; }
+.invitation-deletion-section { border-top: 1px solid var(--color-border); display: grid; gap: 18px; margin-top: 30px; padding-top: 28px; }
+.invitation-deletion-section h2 { color: var(--color-danger); font-size: 20px; margin-top: 4px; }
+.invitation-deletion-section p { color: var(--color-ink-muted); margin-top: 5px; }
+.invitation-deletion-export-offer { background: var(--color-surface-muted); border-radius: 18px; display: grid; gap: 4px; padding: 17px; }
+.invitation-deletion-export-offer strong { color: var(--color-ink-strong); }
+.invitation-deletion-export-offer .ui-text-link { justify-self: start; margin-top: 5px; }
+.invitation-deletion-form { display: grid; gap: 20px; }
+.invitation-deletion-consequences { color: var(--color-ink-muted); display: grid; gap: 6px; margin: 0; padding-left: 22px; }
+.invitation-deletion-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .public-invitation-page { align-items: center; background: var(--color-surface-muted); display: flex; min-height: 100vh; justify-content: center; padding: 24px; }
 .public-invitation-page > .ui-card { max-width: 640px; width: 100%; }
 .verify-email-icon { align-items: center; background: var(--color-accent-sky); border-radius: 50%; color: var(--color-brand); display: grid; font-size: 28px; font-weight: 800; height: 72px; margin: 0 auto 20px; place-items: center; width: 72px; }

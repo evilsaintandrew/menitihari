@@ -151,6 +151,20 @@ Auth: owner.\
 Preconditions: export-eligible lifecycle.\
 Behavior: enqueue idempotent export job; return job status.
 
+### Delete invitation
+
+Auth: owner membership.\
+Input: the exact confirmation phrase `HAPUS`.\
+Behavior: transactionally move the invitation to `DELETION_PENDING`, set
+publication to `UNPUBLISHED`, set server-owned deletion/purge timestamps,
+append a minimal audit event, invalidate the public cache after commit, and
+enqueue one deduplicated purge job due at the configured purge deadline. No
+payment provider or financial record mutation is performed.\
+Response: invitation lifecycle state and the exact server-provided `purgeAt`;
+the client never derives the purge window. Repeating an already accepted
+request returns the existing state/deadline without moving the deadline or
+creating another audit event.
+
 ### Delete invitation/account
 
 Auth: owner + recent reauth for account deletion.\

@@ -150,3 +150,9 @@ transaction as the account state transition. Cancellation must not
 republish them. Deletion jobs contain stable user identifiers and deadlines
 only; passwords, invitation content, financial payloads, and session tokens
 must not be copied into job or audit metadata.
+
+Invitation deletion requires owner membership and the exact confirmation
+phrase. It takes the public invitation offline in the same transaction as
+the `DELETION_PENDING` state change. Purge jobs contain only the invitation
+identifier; retained financial records are not refunded or deleted as part
+of this flow, and storage object deletion is safe to retry.

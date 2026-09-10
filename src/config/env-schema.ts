@@ -27,6 +27,7 @@ const envSchema = z.object({
     z.string().trim().min(1).optional(),
   ),
   ACCOUNT_DELETION_COOLING_OFF_SECONDS: optionalPositiveInteger,
+  INVITATION_PURGE_WINDOW_SECONDS: optionalPositiveInteger,
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

@@ -271,6 +271,8 @@ model Invitation {
   paidAt               DateTime?        @map("paid_at") @db.Timestamptz(3)
   activeUntil          DateTime?        @map("active_until") @db.Timestamptz(3)
   graceEndsAt          DateTime?        @map("grace_ends_at") @db.Timestamptz(3)
+  deletionRequestedAt  DateTime?        @map("deletion_requested_at") @db.Timestamptz(3)
+  purgeAt              DateTime?        @map("purge_at") @db.Timestamptz(3)
   priceLockedAmount    Decimal?         @map("price_locked_amount") @db.Decimal(12, 2)
   currency             String           @default("IDR")
   primaryEventId       String?          @map("primary_event_id")
@@ -759,7 +761,7 @@ model PaymentEvent {
 
 model FinancialRecord {
   id               String    @id @default(cuid())
-  paymentOrderId   String    @unique @map("payment_order_id")
+  paymentOrderId   String?   @unique @map("payment_order_id")
   invitationRef    String    @map("invitation_ref")
   transactionRef   String    @map("transaction_ref")
   amount           Decimal   @db.Decimal(12, 2)
@@ -770,7 +772,7 @@ model FinancialRecord {
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
 
   @@index([transactionRef])
   @@map("financial_records")
