@@ -47,3 +47,34 @@ The MVP wireframes WF-01–WF-35 have been reconciled into the implementation ba
 The implementation workflow is now explicitly agent-ready. `AGENTS.md` defines the permanent rules every coding agent must follow; `docs/IMPLEMENTATION_WORKFLOW.md` defines the Ready → Context → Plan → Implement → Verify → Review → Done lifecycle. GitHub Issues/Projects are the intended live progress system, while the Markdown backlog remains the stable specification. `.github/ISSUE_TEMPLATE/implementation-ticket.yml` and `.github/PULL_REQUEST_TEMPLATE.md` provide the execution and review gates.
 
 Do not create or maintain a duplicate `PROGRESS.md`. Source-of-truth documents are updated only when an approved behavior/contract changes, not merely because implementation status changed.
+
+## Local Development with Docker Compose
+
+Requirements: Docker Desktop (or Docker Engine) with Compose v2.
+
+Start the PostgreSQL database and Next.js development server:
+
+```sh
+docker compose up --build
+```
+
+Open <http://localhost:3000>, or from another device on the same network use
+`http://<IP-LAN-komputer>:3000`. The app container waits for PostgreSQL to be
+healthy, installs the locked pnpm dependencies, applies existing Prisma
+migrations, and starts Next.js with hot reload. Development configuration is
+defined directly in `compose.yaml`; no `.env` file is required. Next.js and
+Better Auth allow localhost plus common private LAN ranges (`192.168.x.x` and
+`10.x.x.x`).
+
+Useful commands:
+
+```sh
+docker compose exec app pnpm test
+docker compose exec app pnpm lint
+docker compose down
+```
+
+PostgreSQL is available from the host at `localhost:5432` and is not published
+to the LAN. The database is stored in the `postgres_data` named volume; remove
+it only when you intentionally want a fresh local database
+(`docker compose down -v`).

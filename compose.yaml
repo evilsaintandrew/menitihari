@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: menitihari
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d menitihari"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    init: true
+    working_dir: /workspace
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/menitihari?schema=public&connection_limit=5&pool_timeout=10
+      # Development-only secret. Do not reuse this value outside local development.
+      BETTER_AUTH_SECRET: local-development-secret-change-me-32-chars
+      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://192.168.*.*:3000,http://10.*.*.*:3000
+      RESEND_API_KEY: local-development-resend-placeholder
+      RESEND_FROM_EMAIL: Menitihari <noreply@example.com>
+      pnpm_config_store_dir: /pnpm/store
+    ports:
+      # Publish on all host interfaces so other devices on the LAN can connect.
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - app_node_modules:/workspace/node_modules
+      - app_next:/workspace/.next
+      - pnpm_store:/pnpm/store
+    command: >-
+      sh -c
+      "pnpm install --frozen-lockfile
+      && pnpm db:migrate
+      && pnpm db:generate
+      && pnpm dev --hostname 0.0.0.0"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  app_next:
+  app_node_modules:
+  pnpm_store:
+  postgres_data:
