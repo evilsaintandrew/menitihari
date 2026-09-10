@@ -9,6 +9,7 @@ import { writeAuditEvent } from "@/modules/audit";
 import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
 import { z } from "zod";
+import { getDefaultThemeConfig } from "@/modules/themes";
 import { ownerMembershipWhere } from "./authorization";
 import {
   INVITATION_SLUG_MAX_LENGTH,
@@ -151,7 +152,7 @@ export async function createInvitation(
         timezone: DEFAULT_INVITATION_TIMEZONE,
         themeId: DEFAULT_INVITATION_THEME_ID,
         themeVersion: DEFAULT_INVITATION_THEME_VERSION,
-        themeConfig: {},
+        themeConfig: getDefaultThemeConfig(DEFAULT_INVITATION_THEME_ID),
         publicationState: PublicationState.DRAFT,
         commercialState: CommercialState.TRIAL,
         trialStartedAt,
