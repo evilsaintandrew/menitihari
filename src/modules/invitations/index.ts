@@ -19,6 +19,7 @@ import {
 export * from "./publication";
 export * from "./slugs";
 export * from "./deletion";
+export * from "./dashboard";
 export { publicInvitationCacheTag } from "./public-cache";
 export { ownerMembershipWhere } from "./authorization";
 

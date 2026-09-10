@@ -102,7 +102,7 @@ export function NewInvitationForm() {
         <Button disabled={pending} fullWidth size="lg" type="submit">
           {pending ? "Membuat undangan..." : "Buat Undangan & Mulai Trial"}
         </Button>
-        <TextLink href="/">Kembali</TextLink>
+        <TextLink href="/invitations">Kembali ke daftar undangan</TextLink>
       </CardFooter>
     </form>
   );

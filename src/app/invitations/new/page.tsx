@@ -19,7 +19,7 @@ export default async function NewInvitationPage() {
     <main className="auth-page invitation-create-page">
       <div className="auth-container invitation-create-container">
         <header className="auth-header">
-          <TextLink href="/" aria-label="Kembali ke beranda">←</TextLink>
+          <TextLink href="/invitations" aria-label="Kembali ke daftar undangan">←</TextLink>
           <span className="ui-wordmark"><span aria-hidden="true" className="ui-wordmark-mark">✦</span> Menitihari</span>
         </header>
         <NewInvitationCard />
