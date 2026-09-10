@@ -2,6 +2,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { writeAuditEvent } from "@/modules/audit";
 import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
+import { isCommerciallyEditable } from "@/modules/lifecycle";
 import { z } from "zod";
 
 import { ownerMembershipWhere } from "./authorization";
@@ -165,6 +166,8 @@ async function updateCanonicalSlug(
       select: {
         id: true,
         commercialState: true,
+        trialEndsAt: true,
+        activeUntil: true,
         slugs: {
           where: { isCanonical: true },
           select: { id: true, slug: true },
@@ -174,7 +177,12 @@ async function updateCanonicalSlug(
     });
 
     if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
-    if (invitation.commercialState !== "TRIAL" && invitation.commercialState !== "PAID_ACTIVE") {
+    if (!isCommerciallyEditable(
+      invitation.commercialState,
+      invitation.trialEndsAt,
+      new Date(),
+      invitation.activeUntil,
+    )) {
       throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
     }
 

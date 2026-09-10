@@ -25,6 +25,7 @@ export default async function PublicInvitationPage({
       publicationState: true,
       commercialState: true,
       trialEndsAt: true,
+      activeUntil: true,
       genericAccessEnabled: true,
       primaryEvent: { select: { startsAt: true } },
     },
