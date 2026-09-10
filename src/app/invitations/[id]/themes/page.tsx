@@ -1,9 +1,10 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { Card, CardContent, CardHeader, TextLink } from "@/components/ui";
+import { Card, CardHeader, TextLink } from "@/components/ui";
+import { ThemePicker } from "@/components/themes/theme-picker";
 import { auth } from "@/lib/auth";
-import { getInvitationForOwner } from "@/modules/invitations";
+import { getInvitationThemePicker, THEME_REGISTRY } from "@/modules/themes";
 import { prisma } from "@/server/db";
 
 export default async function InvitationThemeHandoffPage({
@@ -15,12 +16,12 @@ export default async function InvitationThemeHandoffPage({
   if (!session?.user) redirect("/login");
 
   const { id } = await params;
-  const invitation = await getInvitationForOwner(prisma, session.user.id, id);
+  const invitation = await getInvitationThemePicker(prisma, session.user.id, id);
   if (!invitation) notFound();
 
   return (
-    <main className="auth-page invitation-create-page">
-      <div className="auth-container invitation-create-container">
+    <main className="auth-page invitation-theme-page">
+      <div className="auth-container invitation-theme-container">
         <header className="auth-header">
           <TextLink href="/invitations" aria-label="Kembali ke daftar undangan">←</TextLink>
           <span className="ui-wordmark"><span aria-hidden="true" className="ui-wordmark-mark">✦</span> Menitihari</span>
@@ -29,15 +30,21 @@ export default async function InvitationThemeHandoffPage({
           <CardHeader>
             <p className="ui-overline">Langkah berikutnya</p>
             <h1 className="auth-title">Pilih tema</h1>
-            <p className="ui-card-description">Undangan {invitation.coupleDisplayName1} &amp; {invitation.coupleDisplayName2} berhasil dibuat sebagai draft trial.</p>
+            <p className="ui-card-description">Pilih tampilan untuk undangan Anda. Semua tema tersedia selama masa trial dan masa aktif berbayar.</p>
           </CardHeader>
-          <CardContent className="invitation-theme-handoff">
-            <p>Semua 10 tema termasuk dalam trial. Pemilih tema akan tersedia di langkah berikutnya.</p>
-            <TextLink className="ui-button ui-button-primary" href={`/invitations/${id}/publish`}>Lihat kesiapan publikasi</TextLink>
-            <TextLink className="ui-button ui-button-secondary" href={`/invitations/${id}/settings`}>Atur alamat link publik</TextLink>
-            <TextLink className="ui-button ui-button-secondary" href="/invitations">Kembali ke daftar undangan</TextLink>
-          </CardContent>
         </Card>
+        <ThemePicker
+          canEdit={invitation.canEdit}
+          coupleName={`${invitation.coupleDisplayName1} & ${invitation.coupleDisplayName2}`}
+          invitationId={invitation.invitationId}
+          selectedThemeId={invitation.selectedThemeId}
+          selectedThemeVersion={invitation.selectedThemeVersion}
+          themes={THEME_REGISTRY}
+        />
+        <div className="invitation-theme-back-link">
+          <TextLink href={`/invitations/${id}/settings`}>Atur alamat link publik</TextLink>
+          <TextLink href="/invitations">Kembali ke daftar undangan</TextLink>
+        </div>
       </div>
     </main>
   );
