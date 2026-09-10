@@ -205,6 +205,14 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .verify-email-content { display: grid; gap: 14px; margin-top: 26px; }
 .verify-email-content .ui-text-link:not(.ui-button) { justify-self: center; }
 .verify-email-help { color: var(--color-ink-muted); font-size: 13px; }
+.invitation-create-page { align-items: flex-start; padding-top: clamp(28px, 7vh, 78px); }
+.invitation-create-container { max-width: 560px; }
+.invitation-create-card { padding: clamp(24px, 5vw, 36px); }
+.invitation-create-form { display: grid; gap: 21px; margin-top: 27px; }
+.invitation-create-actions { align-items: stretch; display: grid; gap: 13px; margin-top: 0; }
+.invitation-create-actions .ui-text-link { justify-self: center; }
+.invitation-theme-handoff { display: grid; gap: 20px; }
+.invitation-theme-handoff p { color: var(--color-ink-muted); }
 .verify-email-icon { align-items: center; background: var(--color-accent-sky); border-radius: 50%; color: var(--color-brand); display: grid; font-size: 28px; font-weight: 800; height: 72px; margin: 0 auto 20px; place-items: center; width: 72px; }
 .verify-email-icon-verified { background: var(--color-accent-lime); }
 .security-container { max-width: 640px; }
