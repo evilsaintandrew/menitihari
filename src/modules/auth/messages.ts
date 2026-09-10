@@ -8,3 +8,6 @@ export const LOGIN_GENERIC_ERROR_MESSAGE = "Email atau password tidak valid.";
 
 export const AUTH_RATE_LIMIT_MESSAGE =
   "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.";
+
+export const PASSWORD_RESET_GENERIC_MESSAGE =
+  "Jika email terdaftar, kami mengirim tautan reset password.";

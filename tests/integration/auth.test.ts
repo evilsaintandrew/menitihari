@@ -56,6 +56,24 @@ const verificationAuth = testPrisma
     })
   : undefined;
 
+const resetMessages: Array<{ url: string; token: string }> = [];
+const resetAuth = testPrisma
+  ? betterAuth({
+      baseURL: "https://menitihari.example",
+      secret: testAuthSecret,
+      database: prismaAdapter(testPrisma, { provider: "postgresql" }),
+      emailAndPassword: {
+        enabled: true,
+        revokeSessionsOnPasswordReset: true,
+        sendResetPassword: async ({ url, token }) => {
+          resetMessages.push({ url, token });
+        },
+      },
+      rateLimit: { enabled: false },
+      advanced: { useSecureCookies: true },
+    })
+  : undefined;
+
 describe("Better Auth email/password integration", () => {
   it.skipIf(!testDatabaseUrl)("creates one account and a secure session", async () => {
     const email = `auth-${Date.now()}@example.com`;
@@ -129,6 +147,79 @@ describe("Better Auth email/password integration", () => {
       asResponse: true,
     });
     expect(expired.status).toBe(401);
+
+    await testPrisma!.user.delete({ where: { email } });
+  });
+
+  it.skipIf(!testDatabaseUrl)("resets password generically, revokes sessions, and consumes reset tokens", async () => {
+    const email = `reset-${Date.now()}@example.com`;
+    resetMessages.length = 0;
+
+    const signup = await resetAuth!.api.signUpEmail({
+      body: { email, name: "Reset integration", password: "old-password" },
+      asResponse: true,
+    });
+    expect(signup.status).toBe(200);
+    const user = await testPrisma!.user.findUniqueOrThrow({ where: { email } });
+
+    const secondLogin = await resetAuth!.api.signInEmail({
+      body: { email, password: "old-password" },
+      asResponse: true,
+    });
+    expect(secondLogin.status).toBe(200);
+    expect(await testPrisma!.session.count({ where: { userId: user.id } })).toBeGreaterThanOrEqual(2);
+
+    const unknown = await resetAuth!.api.requestPasswordReset({
+      body: { email: "missing@example.com", redirectTo: "/reset-password" },
+      asResponse: true,
+    });
+    const known = await resetAuth!.api.requestPasswordReset({
+      body: { email, redirectTo: "/reset-password" },
+      asResponse: true,
+    });
+    expect(unknown.status).toBe(200);
+    expect(known.status).toBe(200);
+    expect(await unknown.json()).toEqual(await known.json());
+    expect(resetMessages).toHaveLength(1);
+    expect(resetMessages[0]!.url).toContain("/reset-password/");
+    expect(resetMessages[0]!.url).not.toContain(email);
+
+    const reset = await resetAuth!.api.resetPassword({
+      body: { token: resetMessages[0]!.token, newPassword: "new-password" },
+      asResponse: true,
+    });
+    expect(reset.status).toBe(200);
+    expect(await testPrisma!.session.count({ where: { userId: user.id } })).toBe(0);
+
+    const oldLogin = await resetAuth!.api.signInEmail({
+      body: { email, password: "old-password" },
+      asResponse: true,
+    });
+    expect(oldLogin.status).toBe(401);
+    const newLogin = await resetAuth!.api.signInEmail({
+      body: { email, password: "new-password" },
+      asResponse: true,
+    });
+    expect(newLogin.status).toBe(200);
+
+    const replay = await resetAuth!.api.resetPassword({
+      body: { token: resetMessages[0]!.token, newPassword: "another-password" },
+      asResponse: true,
+    });
+    expect(replay.status).toBe(400);
+
+    await testPrisma!.verification.create({
+      data: {
+        identifier: "reset-password:expired-token",
+        value: user.id,
+        expiresAt: new Date(Date.now() - 1_000),
+      },
+    });
+    const expired = await resetAuth!.api.resetPassword({
+      body: { token: "expired-token", newPassword: "another-password" },
+      asResponse: true,
+    });
+    expect(expired.status).toBe(400);
 
     await testPrisma!.user.delete({ where: { email } });
   });

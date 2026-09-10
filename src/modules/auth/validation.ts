@@ -6,14 +6,14 @@ export const authEmailSchema = z
   .toLowerCase()
   .email({ error: "Masukkan email yang valid." });
 
-const passwordSchema = z
+export const authPasswordSchema = z
   .string({ error: "Masukkan password." })
   .min(8, { error: "Password minimal 8 karakter." })
   .max(128, { error: "Password maksimal 128 karakter." });
 
 export const authCredentialsSchema = z.object({
   email: authEmailSchema,
-  password: passwordSchema,
+  password: authPasswordSchema,
 });
 
 export type AuthCredentials = z.infer<typeof authCredentialsSchema>;

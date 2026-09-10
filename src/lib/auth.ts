@@ -3,7 +3,10 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 
 import { env } from "@/config/env";
-import { createVerificationEmailSender } from "@/modules/auth";
+import {
+  createPasswordResetEmailSender,
+  createVerificationEmailSender,
+} from "@/modules/auth";
 import { createResendEmailService, type EmailService } from "@/providers";
 import { prisma } from "@/server/db";
 
@@ -27,6 +30,11 @@ export function createAuth(dependencies: AuthDependencies = {}) {
       maxPasswordLength: 128,
       autoSignIn: true,
       requireEmailVerification: true,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: createPasswordResetEmailSender(
+        emailService,
+        env.RESEND_FROM_EMAIL,
+      ),
     },
     emailVerification: {
       sendOnSignUp: true,

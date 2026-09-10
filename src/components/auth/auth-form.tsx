@@ -165,7 +165,10 @@ export function AuthFooter({ mode }: { mode: AuthMode }) {
       {mode === "signup" ? (
         <p>Sudah punya akun? <TextLink href="/login">Masuk</TextLink></p>
       ) : (
-        <p>Belum punya akun? <TextLink href="/signup">Buat akun</TextLink></p>
+        <>
+          <p><TextLink href="/forgot-password">Lupa password?</TextLink></p>
+          <p>Belum punya akun? <TextLink href="/signup">Buat akun</TextLink></p>
+        </>
       )}
       {mode === "signup" && <p>Dengan melanjutkan, Anda menyetujui Terms dan Privacy.</p>}
     </CardContent>
