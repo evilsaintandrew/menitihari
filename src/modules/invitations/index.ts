@@ -10,8 +10,14 @@ import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
 import { z } from "zod";
 import { ownerMembershipWhere } from "./authorization";
+import {
+  INVITATION_SLUG_MAX_LENGTH,
+  isUniqueConstraintError,
+  suggestInvitationSlug,
+} from "./slugs";
 
 export * from "./publication";
+export * from "./slugs";
 export { publicInvitationCacheTag } from "./public-cache";
 export { ownerMembershipWhere } from "./authorization";
 
@@ -69,6 +75,7 @@ export interface CreatedInvitation {
   readonly priceLockedAmount: string;
   readonly currency: string;
   readonly primaryEventId: string;
+  readonly slug: string;
 }
 
 export interface CreateInvitationOptions {
@@ -114,12 +121,15 @@ export async function createInvitation(
   const trialEndsAt = calculateTrialEndsAt(trialStartedAt);
   const ownerFacingTitle = `${parsed.coupleDisplayName1} & ${parsed.coupleDisplayName2}`;
   const mainEventStartsAt = mainEventDateToInstant(parsed.mainEventDate);
+  const suggestedSlug = suggestInvitationSlug(parsed.coupleDisplayName1, parsed.coupleDisplayName2);
 
   if (!Number.isFinite(trialStartedAt.getTime())) {
     throw new Error("Invitation creation clock is invalid");
   }
 
-  return database.$transaction(async (transaction) => {
+  for (let slugAttempt = 0; slugAttempt < 100; slugAttempt += 1) {
+    try {
+      return await database.$transaction(async (transaction) => {
     const owner = await transaction.user.findUnique({
       where: { id: userId },
       select: { emailVerified: true, deletionState: true },
@@ -146,6 +156,11 @@ export async function createInvitation(
         priceLockedAmount: LAUNCH_PRICE_AMOUNT.toFixed(2),
         currency: LAUNCH_PRICE_CURRENCY,
       },
+    });
+
+    const slug = slugCandidateForCreation(suggestedSlug, slugAttempt);
+    await transaction.invitationSlug.create({
+      data: { invitationId: invitation.id, slug, isCanonical: true },
     });
 
     await transaction.invitationMember.create({
@@ -179,6 +194,11 @@ export async function createInvitation(
         priceLockedAmount: true,
         currency: true,
         primaryEventId: true,
+        slugs: {
+          where: { isCanonical: true },
+          select: { slug: true },
+          take: 1,
+        },
       },
     });
 
@@ -190,7 +210,7 @@ export async function createInvitation(
       action: "invitation.created",
     });
 
-    if (!linkedInvitation.primaryEventId || !linkedInvitation.priceLockedAmount) {
+    if (!linkedInvitation.primaryEventId || !linkedInvitation.priceLockedAmount || !linkedInvitation.slugs[0]) {
       throw new Error("Invitation creation did not persist required commercial fields");
     }
 
@@ -198,6 +218,20 @@ export async function createInvitation(
       ...linkedInvitation,
       priceLockedAmount: new Prisma.Decimal(linkedInvitation.priceLockedAmount).toFixed(2),
       primaryEventId: linkedInvitation.primaryEventId,
+      slug: linkedInvitation.slugs[0].slug,
     };
-  });
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error) && slugAttempt < 99) continue;
+      throw error;
+    }
+  }
+
+  throw new Error("Invitation slug allocation exhausted");
+}
+
+function slugCandidateForCreation(base: string, attempt: number): string {
+  if (attempt === 0) return base;
+  const suffix = `-${attempt + 1}`;
+  return `${base.slice(0, INVITATION_SLUG_MAX_LENGTH - suffix.length).replace(/-+$/g, "")}${suffix}`;
 }
