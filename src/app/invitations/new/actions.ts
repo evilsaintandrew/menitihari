@@ -9,17 +9,7 @@ import {
   createInvitationInputSchema,
 } from "@/modules/invitations";
 import { prisma } from "@/server/db";
-
-type InvitationField = "coupleDisplayName1" | "coupleDisplayName2" | "mainEventDate";
-
-export interface CreateInvitationActionState {
-  readonly ok: boolean;
-  readonly invitationId?: string;
-  readonly fieldErrors?: Readonly<Partial<Record<InvitationField, string>>>;
-  readonly formError?: string;
-}
-
-export const initialCreateInvitationActionState: CreateInvitationActionState = { ok: false };
+import type { CreateInvitationActionState, InvitationField } from "./action-state";
 
 function formValue(formData: FormData, key: string): string {
   const value = formData.get(key);

@@ -17,10 +17,8 @@ import {
   Input,
   TextLink,
 } from "@/components/ui";
-import {
-  createInvitationAction,
-  initialCreateInvitationActionState,
-} from "@/app/invitations/new/actions";
+import { createInvitationAction } from "@/app/invitations/new/actions";
+import { initialCreateInvitationActionState } from "@/app/invitations/new/action-state";
 
 export function NewInvitationForm() {
   const router = useRouter();
