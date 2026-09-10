@@ -3,7 +3,9 @@ export {
   AUTH_GENERIC_ERROR_MESSAGE,
   AUTH_RATE_LIMIT_MESSAGE,
   LOGIN_GENERIC_ERROR_MESSAGE,
+  PASSWORD_CHANGE_ERROR_MESSAGE,
   PASSWORD_RESET_GENERIC_MESSAGE,
+  SESSION_REVOCATION_ERROR_MESSAGE,
   SIGNUP_GENERIC_ERROR_MESSAGE,
 } from "./messages";
 export {
@@ -23,3 +25,4 @@ export {
   createPasswordResetEmailSender,
   type PasswordResetEmailInput,
 } from "./password-reset-email";
+export { enforcePasswordChangeSessionRevocation } from "./session-revocation";
