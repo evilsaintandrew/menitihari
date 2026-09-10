@@ -30,13 +30,14 @@ describe("Prisma PostgreSQL migration", () => {
           `SELECT table_name
            FROM information_schema.tables
            WHERE table_schema = 'public'
-           AND table_name IN ('invitations', 'guest_events', 'payment_orders', 'jobs', 'audit_events')
+           AND table_name IN ('invitations', 'invitation_members', 'guest_events', 'payment_orders', 'jobs', 'audit_events')
            ORDER BY table_name`,
         );
 
         expect(result.rows.map((row) => row.table_name)).toEqual([
           "audit_events",
           "guest_events",
+          "invitation_members",
           "invitations",
           "jobs",
           "payment_orders",

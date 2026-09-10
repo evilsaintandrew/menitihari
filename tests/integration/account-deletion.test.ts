@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   AccountDeletionState,
   CommercialState,
+  InvitationRole,
   PrismaClient,
   PublicationState,
 } from "../../src/generated/prisma/client";
@@ -42,8 +43,10 @@ describe("account deletion PostgreSQL integration", () => {
         commercialState: CommercialState.TRIAL,
         trialStartedAt: now,
         trialEndsAt: new Date("2026-09-13T00:00:00.000Z"),
-        ownerId: user.id,
       },
+    });
+    await testPrisma!.invitationMember.create({
+      data: { invitationId: invitation.id, userId: user.id, role: InvitationRole.OWNER },
     });
     const paymentOrder = await testPrisma!.paymentOrder.create({
       data: { invitationId: invitation.id, provider: "test", amount: "79000", currency: "IDR" },

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AccountDeletionState,
   CommercialState,
+  InvitationRole,
   JobState,
   PublicationState,
   type PrismaClient,
@@ -58,7 +59,10 @@ describe("account deletion service", () => {
       }),
     });
     expect(transaction.invitation.updateMany).toHaveBeenCalledWith({
-      where: { ownerId: userId, publicationState: PublicationState.PUBLISHED },
+      where: {
+        members: { some: { userId, role: InvitationRole.OWNER } },
+        publicationState: PublicationState.PUBLISHED,
+      },
       data: { publicationState: PublicationState.UNPUBLISHED },
     });
     expect(transaction.job.upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -124,7 +128,7 @@ describe("account deletion service", () => {
 
     expect(result).toEqual({ committed: true, cancellableUntil: null });
     expect(transaction.invitation.updateMany).toHaveBeenCalledWith({
-      where: { ownerId: userId },
+      where: { members: { some: { userId, role: InvitationRole.OWNER } } },
       data: { publicationState: PublicationState.UNPUBLISHED, commercialState: CommercialState.DELETED },
     });
     expect(transaction.job.upsert).toHaveBeenCalledWith(expect.objectContaining({

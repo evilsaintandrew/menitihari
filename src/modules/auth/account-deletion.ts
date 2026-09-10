@@ -1,5 +1,6 @@
 import { AccountDeletionState, CommercialState, JobState, PublicationState, Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { writeAuditEvent } from "@/modules/audit";
+import { ownerMembershipWhere } from "@/modules/invitations";
 
 export const ACCOUNT_DELETION_COMMIT_JOB = "ACCOUNT_DELETION_COMMIT";
 export const ACCOUNT_PURGE_JOB = "ACCOUNT_PURGE";
@@ -89,7 +90,7 @@ export async function requestAccountDeletion(
 
     await transaction.invitation.updateMany({
       where: {
-        ownerId: userId,
+        ...ownerMembershipWhere(userId),
         publicationState: PublicationState.PUBLISHED,
       },
       data: { publicationState: PublicationState.UNPUBLISHED },
@@ -241,7 +242,7 @@ export async function commitAccountDeletion(
     if (committed.count !== 1) return { committed: false, cancellableUntil: null };
 
     await transaction.invitation.updateMany({
-      where: { ownerId: userId },
+      where: ownerMembershipWhere(userId),
       data: {
         publicationState: PublicationState.UNPUBLISHED,
         commercialState: CommercialState.DELETED,
