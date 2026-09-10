@@ -180,17 +180,18 @@ enum ExportJobState {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  name                String               @default("")
-  email               String               @unique
-  emailVerified       Boolean              @default(false) @map("email_verified")
-  emailVerifiedAt     DateTime?            @map("email_verified_at") @db.Timestamptz(3)
-  image               String?
-  deletionState       AccountDeletionState @default(ACTIVE) @map("deletion_state")
-  deletionRequestedAt DateTime?            @map("deletion_requested_at") @db.Timestamptz(3)
-  deletionCommittedAt DateTime?            @map("deletion_committed_at") @db.Timestamptz(3)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                       String               @id @default(cuid())
+  name                     String               @default("")
+  email                    String               @unique
+  emailVerified            Boolean              @default(false) @map("email_verified")
+  emailVerifiedAt          DateTime?            @map("email_verified_at") @db.Timestamptz(3)
+  image                    String?
+  deletionState            AccountDeletionState @default(ACTIVE) @map("deletion_state")
+  deletionRequestedAt      DateTime?            @map("deletion_requested_at") @db.Timestamptz(3)
+  deletionCancellableUntil DateTime?            @map("deletion_cancellable_until") @db.Timestamptz(3)
+  deletionCommittedAt      DateTime?            @map("deletion_committed_at") @db.Timestamptz(3)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   invitationMemberships InvitationMember[]
   ownedInvitations      Invitation[]       @relation("InvitationOwner")

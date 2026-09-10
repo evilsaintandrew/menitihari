@@ -119,6 +119,8 @@ No admin UI required.
 -   Missing object counts as successful deletion.
 -   Deletion job contains only minimal storage locator.
 -   Export artifacts have bounded retention.
+-   Account deletion commit jobs run only after their server-owned
+    `cancellable_until`; cancellation removes the pending commit job.
 
 ## 11. Monitoring
 

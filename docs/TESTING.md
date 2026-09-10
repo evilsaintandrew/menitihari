@@ -136,8 +136,11 @@ Use the smallest test layer that proves the behavior:
 ### Deletion/export
 
 -   export in trial/paid/grace;
+-   account deletion requires recent reauthentication and strong confirmation;
 -   account deletion takes public offline;
 -   cooling-off cancel does not republish;
+-   cooling-off deadline is server-configured and exposed exactly;
+-   deletion commit is idempotent and schedules purge;
 -   operational data purge;
 -   financial record retention separation.
 

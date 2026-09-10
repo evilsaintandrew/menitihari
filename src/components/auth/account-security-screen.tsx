@@ -19,6 +19,7 @@ import {
   TextLink,
 } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import { AccountDeletionSection } from "./account-deletion-section";
 import {
   PASSWORD_CHANGE_ERROR_MESSAGE,
   SESSION_REVOCATION_ERROR_MESSAGE,
@@ -221,6 +222,7 @@ export function AccountSecurityScreen() {
                 </Button>
               </CardFooter>
             </form>
+            <AccountDeletionSection />
           </CardContent>
         </Card>
       </div>
