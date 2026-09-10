@@ -9,6 +9,11 @@ import { writeAuditEvent } from "@/modules/audit";
 import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
 import { z } from "zod";
+import { ownerMembershipWhere } from "./authorization";
+
+export * from "./publication";
+export { publicInvitationCacheTag } from "./public-cache";
+export { ownerMembershipWhere } from "./authorization";
 
 export const INVITATION_TRIAL_DAYS = 3;
 export const INVITATION_TRIAL_DURATION_MS = INVITATION_TRIAL_DAYS * 24 * 60 * 60 * 1_000;
@@ -73,16 +78,6 @@ export interface CreateInvitationOptions {
 type InvitationDatabase = Pick<PrismaClient, "$transaction">;
 
 type InvitationReadDatabase = Pick<PrismaClient, "invitation">;
-
-/**
- * Invitation ownership is represented by an active OWNER membership. MVP has
- * no inactive membership state, so a matching membership row is active.
- */
-export function ownerMembershipWhere(userId: string): Prisma.InvitationWhereInput {
-  return {
-    members: { some: { userId, role: InvitationRole.OWNER } },
-  };
-}
 
 export function calculateTrialEndsAt(trialStartedAt: Date): Date {
   return new Date(trialStartedAt.getTime() + INVITATION_TRIAL_DURATION_MS);
