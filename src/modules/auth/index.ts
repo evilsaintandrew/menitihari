@@ -7,8 +7,13 @@ export {
 } from "./messages";
 export {
   authCredentialsSchema,
+  authEmailSchema,
   displayNameFromEmail,
   validateAuthCredentials,
   type AuthCredentials,
   type AuthFieldErrors,
 } from "./validation";
+export {
+  createVerificationEmailSender,
+  type VerificationEmailInput,
+} from "./verification-email";

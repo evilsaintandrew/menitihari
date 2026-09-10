@@ -14,6 +14,8 @@ describe("parseEnv", () => {
       NEXT_PUBLIC_APP_URL: "https://menitihari.example",
       DATABASE_URL: "postgresql://localhost/menitihari",
       BETTER_AUTH_SECRET: undefined,
+      RESEND_API_KEY: undefined,
+      RESEND_FROM_EMAIL: undefined,
       SENTRY_DSN: undefined,
       NEXT_PUBLIC_SENTRY_DSN: undefined,
       SENTRY_ENVIRONMENT: undefined,

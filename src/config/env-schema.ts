@@ -13,6 +13,8 @@ const envSchema = z.object({
     "must be a PostgreSQL connection URL",
   ),
   BETTER_AUTH_SECRET: z.string().trim().min(32).optional(),
+  RESEND_API_KEY: z.string().trim().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().trim().min(1).optional(),
   SENTRY_DSN: optionalUrl,
   NEXT_PUBLIC_SENTRY_DSN: optionalUrl,
   SENTRY_ENVIRONMENT: z.string().trim().min(1).optional(),

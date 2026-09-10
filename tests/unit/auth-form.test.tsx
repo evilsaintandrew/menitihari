@@ -6,6 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const authMocks = vi.hoisted(() => ({
   signIn: vi.fn(),
   signUp: vi.fn(),
+  replace: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: authMocks.replace }),
 }));
 
 vi.mock("better-auth/react", () => ({
@@ -48,6 +53,35 @@ describe("AuthForm", () => {
     expect((screen.getByLabelText(/Email/) as HTMLInputElement).value).toBe("owner@example.com");
     expect((screen.getByLabelText(/Password/) as HTMLInputElement).value).toBe("correct-password");
     expect(screen.queryByText("User already exists")).toBeNull();
+  });
+
+  it("routes a new account to the verification screen after signup", async () => {
+    authMocks.signUp.mockResolvedValue({
+      data: { user: { emailVerified: false } },
+      error: null,
+    });
+    render(<AuthForm mode="signup" />);
+
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "owner@example.com" } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "correct-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buat Akun" }));
+
+    await waitFor(() => expect(authMocks.replace).toHaveBeenCalledWith("/verify-email?sent=1"));
+    expect(screen.queryByText("User already exists")).toBeNull();
+  });
+
+  it("routes an unverified login to resend verification", async () => {
+    authMocks.signIn.mockResolvedValue({
+      data: null,
+      error: { code: "EMAIL_NOT_VERIFIED", status: 403 },
+    });
+    render(<AuthForm mode="login" />);
+
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "owner@example.com" } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "correct-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Masuk" }));
+
+    await waitFor(() => expect(authMocks.replace).toHaveBeenCalledWith("/verify-email"));
   });
 
   it("shows a successful login without exposing provider response details", async () => {

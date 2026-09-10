@@ -22,3 +22,4 @@ export type {
   StorageObjectInput,
   StorageProvider,
 } from "./contracts";
+export { createResendEmailService, type ResendEmailServiceOptions } from "./resend-email";
