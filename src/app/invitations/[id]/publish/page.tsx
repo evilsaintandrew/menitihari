@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { Alert, Badge, Card, CardContent, CardHeader, TextLink } from "@/components/ui";
 import { auth } from "@/lib/auth";
+import { isPaidExpired } from "@/modules/lifecycle";
 import {
   getInvitationPublishReadiness,
   type PublishRequirement,
@@ -32,6 +33,8 @@ export default async function PublishReadinessPage({
   const isPublished = readiness.publicationState === "PUBLISHED";
   const isCommerciallyEditable = readiness.commercialStateAllowsPublication;
   const canPublish = isCommerciallyEditable && readiness.missingRequirements.length === 0;
+  const isPaidAccessExpired = readiness.commercialState === "PAID_ACTIVE" &&
+    isPaidExpiredAt(readiness.activeUntil);
 
   return (
     <main className="auth-page invitation-publish-page">
@@ -58,8 +61,12 @@ export default async function PublishReadinessPage({
 
             {!isCommerciallyEditable && (
               <Alert tone="warning" title="Publikasi sedang dikunci">
-                {readiness.commercialState === "TRIAL_EXPIRED"
+                {readiness.commercialState === "GRACE"
+                  ? `Masa aktif berakhir ${formatLifecycleDate(readiness.activeUntil)}. Undangan publik sekarang offline. Data tersedia sampai ${formatLifecycleDate(readiness.graceEndsAt)} untuk preview pribadi, export, dan download media. Editor dan publish tidak tersedia; MVP tidak menyediakan renewal.`
+                  : readiness.commercialState === "TRIAL_EXPIRED"
                   ? "Trial undangan ini sudah berakhir. Undangan publik sedang offline dan editor hanya-baca. Data yang sudah dibuat tetap tersimpan."
+                  : isPaidAccessExpired
+                    ? `Masa aktif berbayar berakhir ${formatLifecycleDate(readiness.activeUntil)}. Undangan publik sedang offline dan editor hanya-baca sampai sistem memproses masa grace.`
                   : "Status komersial undangan ini tidak mengizinkan perubahan publikasi saat ini."}
               </Alert>
             )}
@@ -73,7 +80,7 @@ export default async function PublishReadinessPage({
                       {valid ? "✓" : "!"}
                     </span>
                     <span>{requirementLabels[requirement]}</span>
-                    {!valid && <TextLink href={`/invitations/${id}/themes`}>Lengkapi</TextLink>}
+                    {!valid && isCommerciallyEditable && <TextLink href={`/invitations/${id}/themes`}>Lengkapi</TextLink>}
                   </div>
                 );
               })}
@@ -101,4 +108,17 @@ export default async function PublishReadinessPage({
       </div>
     </main>
   );
+}
+
+function isPaidExpiredAt(activeUntil: Date | null): boolean {
+  return isPaidExpired(activeUntil, new Date());
+}
+
+function formatLifecycleDate(value: Date | null): string {
+  if (!value) return "tanggal yang ditentukan server";
+  return value.toLocaleString("id-ID", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Asia/Jakarta",
+  });
 }

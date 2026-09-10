@@ -19,6 +19,8 @@ export interface PublishReadiness {
   readonly coupleDisplayName2: string;
   readonly publicationState: PublicationState;
   readonly commercialState: CommercialState;
+  readonly activeUntil: Date | null;
+  readonly graceEndsAt: Date | null;
   readonly commercialStateAllowsPublication: boolean;
   readonly requirements: Readonly<Record<PublishRequirement, boolean>>;
   readonly missingRequirements: readonly PublishRequirement[];
@@ -51,6 +53,8 @@ const publicationSelect = {
   publicationState: true,
   commercialState: true,
   trialEndsAt: true,
+  activeUntil: true,
+  graceEndsAt: true,
   primaryEventId: true,
   primaryEvent: {
     select: {
@@ -94,10 +98,13 @@ function buildReadiness(invitation: PublicationInvitation, now = new Date()): Pu
     coupleDisplayName2: invitation.coupleDisplayName2,
     publicationState: invitation.publicationState,
     commercialState: invitation.commercialState,
+    activeUntil: invitation.activeUntil,
+    graceEndsAt: invitation.graceEndsAt,
     commercialStateAllowsPublication: isCommerciallyEditable(
       invitation.commercialState,
       invitation.trialEndsAt,
       now,
+      invitation.activeUntil,
     ),
     requirements,
     missingRequirements,
@@ -143,7 +150,12 @@ async function transitionPublication(
       throw new DomainError(ERROR_CODES.NOT_FOUND);
     }
 
-    if (!isCommerciallyEditable(invitation.commercialState, invitation.trialEndsAt)) {
+    if (!isCommerciallyEditable(
+      invitation.commercialState,
+      invitation.trialEndsAt,
+      new Date(),
+      invitation.activeUntil,
+    )) {
       throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
     }
 

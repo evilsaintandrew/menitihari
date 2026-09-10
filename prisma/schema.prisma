@@ -304,6 +304,8 @@ model Invitation {
   primaryEvent     Event?                      @relation("PrimaryEvent", fields: [primaryEventId], references: [id], onDelete: SetNull)
 
   @@index([commercialState, trialEndsAt])
+  @@index([commercialState, activeUntil])
+  @@index([commercialState, graceEndsAt])
   @@index([publicationState])
   @@map("invitations")
 }
