@@ -174,7 +174,7 @@ function InvitationDashboardCard({
       </CardContent>
       {!isDeleted && (
         <CardFooter className="invitation-dashboard-card-actions">
-          <TextLink className="ui-button ui-button-secondary" href={`/invitations/${invitation.id}/publish`}>
+          <TextLink className="ui-button ui-button-secondary" href={`/invitations/${invitation.id}/edit`}>
             Kelola Undangan
           </TextLink>
           {invitation.canonicalSlug && isPublished && (

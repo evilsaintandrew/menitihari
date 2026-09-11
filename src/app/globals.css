@@ -298,6 +298,60 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-preview-actions .ui-badge { font-size: 11px; }
 .invitation-preview-toolbar { align-items: center; color: var(--color-ink-muted); display: flex; flex-wrap: wrap; font-size: 14px; gap: 12px; justify-content: space-between; margin: 0 auto; max-width: 900px; padding: 22px 24px 14px; }
 .invitation-preview-viewport { margin: 0 auto; max-width: 900px; padding: 0 24px; }
+.invitation-editor-page { background: #faf9f7; min-height: 100vh; padding-bottom: 48px; }
+.invitation-editor-header { align-items: center; background: var(--color-surface); border-bottom: 1px solid var(--color-border); display: flex; gap: 24px; justify-content: space-between; padding: 20px clamp(18px, 4vw, 52px); position: sticky; top: 0; z-index: 20; }
+.invitation-editor-heading { align-items: flex-start; display: flex; gap: 16px; min-width: 0; }
+.invitation-editor-heading > .ui-text-link { color: var(--color-ink-muted); font-size: 28px; line-height: 1; text-decoration: none; }
+.invitation-editor-heading h1 { font-size: clamp(24px, 3vw, 34px); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invitation-editor-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.invitation-editor-badges .ui-badge { font-size: 11px; padding: 6px 9px; }
+.invitation-editor-header-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.invitation-editor-save-status { font-size: 14px; font-weight: 800; margin-right: 4px; white-space: nowrap; }
+.invitation-editor-save-status-success { color: var(--color-success); }
+.invitation-editor-save-status-info { color: var(--color-info); }
+.invitation-editor-save-status-warning { color: var(--color-warning); }
+.invitation-editor-save-status-danger { color: var(--color-danger); }
+.invitation-editor-lock, .invitation-editor-save-alert { margin: 22px auto 0; max-width: 1440px; width: calc(100% - 36px); }
+.invitation-editor-save-alert .ui-alert-content { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.invitation-editor-inline-action { margin-top: 5px; }
+.invitation-editor-layout { display: grid; gap: 28px; grid-template-columns: minmax(340px, 520px) minmax(0, 1fr); margin: 28px auto 0; max-width: 1440px; padding: 0 24px; }
+.invitation-editor-controls .ui-card { padding: clamp(22px, 3vw, 32px); }
+.invitation-editor-form { display: grid; gap: 20px; }
+.invitation-editor-section-heading { align-items: center; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; padding-bottom: 10px; }
+.invitation-editor-section-heading h3 { font-size: 18px; }
+.invitation-editor-section-heading .ui-badge { font-size: 11px; padding: 5px 8px; }
+.invitation-editor-section-heading-spaced { margin-top: 10px; }
+.invitation-editor-quick-rows { border-top: 1px solid var(--color-border); display: grid; gap: 0; margin-top: 4px; }
+.invitation-editor-quick-rows > div { align-items: center; border-bottom: 1px solid var(--color-border); display: flex; gap: 12px; justify-content: space-between; min-height: 54px; }
+.invitation-editor-quick-rows > div > span { color: var(--color-ink-strong); font-weight: 800; }
+.invitation-editor-quick-rows .ui-badge { font-size: 11px; padding: 6px 8px; }
+.invitation-editor-quick-rows .ui-text-link { font-size: 14px; }
+.invitation-editor-preview-pane { min-width: 0; }
+.invitation-editor-preview-heading { align-items: center; display: flex; justify-content: space-between; margin: 4px 0 14px; }
+.invitation-editor-preview-heading h2 { font-size: 23px; margin-top: 3px; }
+.invitation-editor-preview-heading .ui-badge { font-size: 11px; }
+.invitation-editor-preview-viewport { background: #f0edf4; border: 1px solid var(--color-border); border-radius: 28px; min-height: 640px; overflow: auto; padding: clamp(18px, 4vw, 42px); }
+.invitation-editor-preview-viewport .invitation-renderer { margin: 0 auto; max-width: 640px; }
+.invitation-editor-sticky-actions, .invitation-editor-loading { display: none; }
+@media (max-width: 900px) {
+  .invitation-editor-header { align-items: flex-start; display: grid; gap: 13px; padding: 16px 18px; position: static; }
+  .invitation-editor-heading h1 { font-size: 24px; }
+  .invitation-editor-header-actions { justify-content: flex-start; }
+  .invitation-editor-header-actions > .ui-button { display: none; }
+  .invitation-editor-layout { display: block; margin-top: 18px; padding: 0 18px; }
+  .invitation-editor-preview-pane { display: none; }
+  .invitation-editor-sticky-actions { background: rgb(255 255 255 / 94%); border-top: 1px solid var(--color-border); bottom: 0; display: grid; gap: 10px; grid-template-columns: 1fr 1fr; padding: 12px 18px; position: sticky; z-index: 15; }
+  .invitation-editor-lock, .invitation-editor-save-alert { margin-top: 18px; width: calc(100% - 36px); }
+}
+@media (max-width: 520px) {
+  .invitation-editor-heading { gap: 10px; }
+  .invitation-editor-heading > .ui-text-link { font-size: 24px; }
+  .invitation-editor-save-status { font-size: 13px; }
+  .invitation-editor-layout { padding: 0 12px; }
+  .invitation-editor-controls .ui-card { border-radius: 24px; padding: 20px 18px; }
+  .invitation-editor-lock, .invitation-editor-save-alert { width: calc(100% - 24px); }
+  .invitation-editor-save-alert .ui-alert-content { display: grid; }
+}
 .invitation-renderer { background: var(--invitation-background); border: 1px solid color-mix(in srgb, var(--invitation-accent) 35%, transparent); border-radius: 28px; box-shadow: 0 24px 80px rgb(33 22 76 / 12%); color: var(--invitation-foreground); margin: 0 auto; overflow: hidden; }
 .invitation-renderer-cover { align-items: center; display: grid; gap: 12px; min-height: 390px; padding: clamp(48px, 10vw, 92px) 28px; place-content: center; position: relative; text-align: center; }
 .invitation-renderer-cover::before, .invitation-renderer-cover::after { border: 1px solid var(--invitation-accent); border-radius: 50%; content: ""; opacity: .24; position: absolute; }

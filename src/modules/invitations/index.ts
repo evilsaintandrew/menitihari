@@ -22,6 +22,7 @@ export * from "./slugs";
 export * from "./deletion";
 export * from "./dashboard";
 export * from "./content";
+export * from "./editor";
 export * from "./render-data";
 export { publicInvitationCacheTag } from "./public-cache";
 export { ownerMembershipWhere } from "./authorization";
