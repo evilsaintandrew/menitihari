@@ -148,6 +148,22 @@ enum JobState {
   DEAD_LETTER
 }
 
+enum GuestImportState {
+  UPLOADED
+  PARSING
+  PREVIEW
+  COMMITTING
+  COMPLETED
+  FAILED
+}
+
+enum GuestImportRowState {
+  INCLUDED
+  EXCLUDED
+  COMMITTED
+  FAILED
+}
+
 enum EmailDeliveryState {
   QUEUED
   PROVIDER_ACCEPTED
@@ -198,6 +214,7 @@ model User {
   sessions              Session[]
   emailDeliveries       EmailDelivery[]
   requestedExports      ExportJob[]
+  requestedGuestImports GuestImport[]
   auditEvents           AuditEvent[]       @relation("AuditActorUser")
 }
 
@@ -303,6 +320,7 @@ model Invitation {
   emailDeliveries  EmailDelivery[]
   auditEvents      AuditEvent[]
   exportJobs       ExportJob[]
+  guestImports     GuestImport[]
   primaryEvent     Event?                      @relation("PrimaryEvent", fields: [primaryEventId], references: [id], onDelete: SetNull)
 
   @@index([commercialState, trialEndsAt])
@@ -435,6 +453,7 @@ model Guest {
   sessions              GuestSession[]
   wishes                Wish[]
   qrCredentials         QRCredential[]
+  importRows            GuestImportRow[]
   mergedInto            Guest?                      @relation("GuestMergeTarget", fields: [mergedIntoGuestId], references: [id], onDelete: SetNull)
   mergedSources         Guest[]                     @relation("GuestMergeTarget")
 
@@ -807,6 +826,67 @@ model Job {
   @@index([state, runAfter, priority])
   @@index([leaseExpiresAt])
   @@map("jobs")
+}
+
+model GuestImport {
+  id                String           @id @default(cuid())
+  invitationId      String           @map("invitation_id")
+  requestedById     String           @map("requested_by_id")
+  sourceFilename    String           @map("source_filename")
+  sourceMimeType    String           @map("source_mime_type")
+  sourceSizeBytes   Int              @map("source_size_bytes")
+  sourceBytes       Bytes?           @map("source_bytes")
+  state             GuestImportState @default(UPLOADED)
+  totalRows         Int              @default(0) @map("total_rows")
+  validRows         Int              @default(0) @map("valid_rows")
+  warningRows       Int              @default(0) @map("warning_rows")
+  invalidRows       Int              @default(0) @map("invalid_rows")
+  includedRows      Int              @default(0) @map("included_rows")
+  committedRows     Int              @default(0) @map("committed_rows")
+  failedRows        Int              @default(0) @map("failed_rows")
+  capacityBefore    Int              @default(0) @map("capacity_before")
+  capacityAdditional Int             @default(0) @map("capacity_additional")
+  capacityAfter     Int              @default(0) @map("capacity_after")
+  errorCode         String?          @map("error_code")
+  statusMessage     String?          @map("status_message")
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt       DateTime?        @map("completed_at") @db.Timestamptz(3)
+
+  invitation  Invitation   @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  requestedBy User          @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  rows        GuestImportRow[]
+
+  @@index([invitationId, createdAt])
+  @@index([state, updatedAt])
+  @@map("guest_imports")
+}
+
+model GuestImportRow {
+  id                String              @id @default(cuid())
+  guestImportId     String              @map("guest_import_id")
+  rowNumber         Int                 @map("row_number")
+  displayName       String?             @map("display_name")
+  phone             String?
+  groupName         String?             @map("group_name")
+  assignments       Json?
+  rawValues         Json                @map("raw_values")
+  issues            Json
+  duplicateWarnings Json                @map("duplicate_warnings")
+  isValid           Boolean             @default(false) @map("is_valid")
+  hasWarnings       Boolean             @default(false) @map("has_warnings")
+  state             GuestImportRowState @default(EXCLUDED)
+  guestId           String?             @map("guest_id")
+  failureCode       String?             @map("failure_code")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  guestImport GuestImport @relation(fields: [guestImportId], references: [id], onDelete: Cascade)
+  guest       Guest?      @relation(fields: [guestId], references: [id], onDelete: SetNull)
+
+  @@unique([guestImportId, rowNumber])
+  @@index([guestImportId, state, rowNumber])
+  @@map("guest_import_rows")
 }
 
 model EmailDelivery {

@@ -119,6 +119,14 @@ Auth: owner.\
 Flow: upload → background parse/validate → preview → explicit confirm →
 bounded idempotent commit batches.
 
+Upload enforces server-configured file and row limits before queueing a parse
+job. Preview rows expose only safe row fields, validation issues, and duplicate
+warnings. Invalid rows are excluded by default; warnings never auto-merge a
+guest. Confirmation re-checks lifecycle, ownership, and invited-person
+capacity in a transaction. Commit batches re-check capacity again and record
+each committed row atomically with its created guest; rows that no longer fit
+are marked failed without exceeding the 500-person entitlement.
+
 ### Activate personalized guest
 
 Access: opaque raw activation token.\

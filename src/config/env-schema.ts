@@ -28,6 +28,9 @@ const envSchema = z.object({
   ),
   ACCOUNT_DELETION_COOLING_OFF_SECONDS: optionalPositiveInteger,
   INVITATION_PURGE_WINDOW_SECONDS: optionalPositiveInteger,
+  GUEST_IMPORT_MAX_FILE_BYTES: optionalPositiveInteger,
+  GUEST_IMPORT_MAX_ROWS: optionalPositiveInteger,
+  GUEST_IMPORT_COMMIT_BATCH_SIZE: optionalPositiveInteger,
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
