@@ -6,6 +6,7 @@ import {
   getInvitationEditorSnapshot,
   getInvitationPreviewRenderData,
 } from "@/modules/invitations";
+import { getInvitationShareCoverOptions } from "@/modules/media";
 import { resolveThemeForRender } from "@/modules/themes";
 import { prisma } from "@/server/db";
 
@@ -20,9 +21,10 @@ export default async function InvitationEditorPage({
   if (!session?.user) redirect("/login");
 
   const { id } = await params;
-  const [snapshot, preview] = await Promise.all([
+  const [snapshot, preview, shareCoverOptions] = await Promise.all([
     getInvitationEditorSnapshot(prisma, session.user.id, id),
     getInvitationPreviewRenderData(prisma, session.user.id, id),
+    getInvitationShareCoverOptions(prisma, session.user.id, id),
   ]);
   if (!snapshot || !preview) notFound();
 
@@ -37,6 +39,7 @@ export default async function InvitationEditorPage({
       publicationState={snapshot.publicationState}
       commercialState={snapshot.commercialState}
       canEdit={snapshot.canEdit}
+      shareCoverOptions={shareCoverOptions}
     />
   );
 }

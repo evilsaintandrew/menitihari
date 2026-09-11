@@ -230,4 +230,35 @@ describe("WF-06 invitation editor", () => {
       { accent: "blush", fontPairing: "script-sans", coverStyle: "framed", sectionStyle: "soft" },
     );
   });
+
+  it("lets the owner select a ready share cover and autosaves the asset reference", async () => {
+    vi.useFakeTimers();
+    saveInvitationContentAction.mockResolvedValue({ ok: true, version: 2, message: "Perubahan tersimpan." });
+    render(
+      <InvitationEditor
+        invitationId="editor-ui-1"
+        invitationTitle="Alya & Bima"
+        initialContent={content}
+        initialVersion={1}
+        preview={preview}
+        theme={theme}
+        publicationState={PublicationState.DRAFT}
+        commercialState={CommercialState.TRIAL}
+        canEdit
+        shareCoverOptions={[{ id: "asset-ready", mimeType: "image/jpeg", width: 1200, height: 630 }]}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Cover untuk link bagikan"), { target: { value: "asset-ready" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+
+    expect(saveInvitationContentAction).toHaveBeenCalledWith(
+      "editor-ui-1",
+      1,
+      expect.objectContaining({ shareCoverMediaAssetId: "asset-ready" }),
+      expect.anything(),
+    );
+  });
 });

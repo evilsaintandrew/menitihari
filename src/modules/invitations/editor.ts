@@ -4,6 +4,7 @@ import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
 import { getInvitationLifecycleCapabilities, isCommerciallyEditable } from "@/modules/lifecycle";
 import { getThemeDefinition, isThemeConfigSupported, themeConfigSchema } from "@/modules/themes";
+import { assertInvitationShareCover } from "@/modules/media";
 import { z } from "zod";
 
 import { ownerMembershipWhere } from "./authorization";
@@ -153,6 +154,21 @@ export async function saveInvitationContent(
     const themeConfig = parsed.themeConfig ?? (persistedThemeConfig.success ? persistedThemeConfig.data : null);
     if (!theme || !themeConfig || !isThemeConfigSupported(theme, themeConfig)) {
       throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
+    }
+
+    if (parsed.content.shareCoverMediaAssetId) {
+      try {
+        await assertInvitationShareCover(
+          transaction,
+          invitationId,
+          parsed.content.shareCoverMediaAssetId,
+        );
+      } catch (error) {
+        if (error instanceof Error && error.message === "INVALID_SHARE_COVER") {
+          throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
+        }
+        throw error;
+      }
     }
 
     const updated = await transaction.invitation.updateMany({

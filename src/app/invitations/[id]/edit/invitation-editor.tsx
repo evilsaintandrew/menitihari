@@ -34,6 +34,7 @@ import {
   type InvitationSectionOption,
 } from "@/modules/invitations/content";
 import type { InvitationRenderData } from "@/modules/invitations/render-data";
+import type { InvitationShareCoverOption } from "@/modules/media";
 import {
   type ResolvedThemePresentation,
   type ThemeConfig,
@@ -56,6 +57,7 @@ interface InvitationEditorProps {
   readonly publicationState: PublicationState;
   readonly commercialState: CommercialState;
   readonly canEdit: boolean;
+  readonly shareCoverOptions?: readonly InvitationShareCoverOption[];
 }
 
 function sameContent(left: InvitationContent, right: InvitationContent): boolean {
@@ -191,6 +193,57 @@ function AppearanceControls({ theme, themeConfig, canEdit, onChange }: Appearanc
         </Select>
         <FieldHint>Pilih komposisi cover yang paling sesuai dengan tema Anda.</FieldHint>
       </Field>
+    </section>
+  );
+}
+
+function ShareMetadataControls({
+  content,
+  canEdit,
+  options,
+  onChange,
+}: {
+  readonly content: InvitationContent;
+  readonly canEdit: boolean;
+  readonly options: readonly InvitationShareCoverOption[];
+  readonly onChange: (mediaAssetId: string | undefined) => void;
+}) {
+  const selectedId = content.shareCoverMediaAssetId ?? "";
+  const selectedAssetIsUnavailable = Boolean(selectedId) && !options.some(({ id }) => id === selectedId);
+
+  return (
+    <section aria-labelledby="sharing-metadata-heading" className="invitation-editor-share-metadata">
+      <div className="invitation-editor-section-heading">
+        <div>
+          <h3 id="sharing-metadata-heading">Share preview</h3>
+          <p className="invitation-editor-control-description">Atur tampilan saat link undangan dibagikan.</p>
+        </div>
+      </div>
+      <Field>
+        <FieldLabel>Cover untuk link bagikan</FieldLabel>
+        <Select
+          aria-label="Cover untuk link bagikan"
+          disabled={!canEdit}
+          onChange={(event) => onChange(event.target.value || undefined)}
+          value={selectedId}
+        >
+          <option value="">Cover default</option>
+          {selectedAssetIsUnavailable && <option value={selectedId}>Cover sebelumnya tidak tersedia</option>}
+          {options.map((asset, index) => (
+            <option key={asset.id} value={asset.id}>
+              Foto pilihan {index + 1}{asset.width && asset.height ? ` (${asset.width}×${asset.height})` : ""}
+            </option>
+          ))}
+        </Select>
+        <FieldHint>
+          {options.length > 0
+            ? "Pilih foto siap pakai dari media undangan Anda."
+            : "Belum ada foto siap pakai. Cover default akan digunakan sampai Anda menambahkan media."}
+        </FieldHint>
+      </Field>
+      <p className="invitation-editor-privacy-note">
+        Nama tamu tidak pernah dimasukkan ke preview link personal. Jika password bersama aktif, metadata tetap umum.
+      </p>
     </section>
   );
 }
@@ -379,7 +432,7 @@ function LoveStoryFields({
   );
 }
 
-export function InvitationEditor({ invitationId, invitationTitle, initialContent, initialVersion, preview, theme, publicationState, commercialState, canEdit }: InvitationEditorProps) {
+export function InvitationEditor({ invitationId, invitationTitle, initialContent, initialVersion, preview, theme, publicationState, commercialState, canEdit, shareCoverOptions = [] }: InvitationEditorProps) {
   const [draft, setDraft] = useState<InvitationContent>(initialContent);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig>(theme.config);
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -529,6 +582,10 @@ export function InvitationEditor({ invitationId, invitationTitle, initialContent
     updateEditor(draftRef.current, nextThemeConfig);
   }
 
+  function updateShareCover(mediaAssetId: string | undefined) {
+    updateEditor({ ...draftRef.current, shareCoverMediaAssetId: mediaAssetId });
+  }
+
   function toggleSection(sectionId: InvitationSectionId, enabled: boolean) {
     const current = defaultEditorSectionOrder(draftRef.current);
     const next = enabled ? [...current, ...(current.includes(sectionId) ? [] : [sectionId])] : current.filter((id) => id !== sectionId);
@@ -595,6 +652,7 @@ export function InvitationEditor({ invitationId, invitationTitle, initialContent
             <Field><FieldLabel>Hashtag <span>(opsional)</span></FieldLabel><Input aria-label="Hashtag" disabled={!canEdit} maxLength={240} onChange={(event) => updateQuoteOrHashtag("hashtag", event.target.value)} placeholder="#NamaPasangan" value={draft.optional.hashtag ?? ""} /></Field>
             {activeSectionSet.has("love_story") && <LoveStoryFields canEdit={canEdit} content={draft} onChange={updateLoveStory} />}
             <AppearanceControls canEdit={canEdit} onChange={updateAppearance} theme={theme} themeConfig={themeConfig} />
+            <ShareMetadataControls canEdit={canEdit} content={draft} onChange={updateShareCover} options={shareCoverOptions} />
             <div className="invitation-editor-quick-rows" aria-label="Bagian pengaturan lain"><div><span>Events</span><Badge tone="warning">! Lengkapi berikutnya</Badge></div><div><span>Sharing &amp; Privacy</span><TextLink href={`/invitations/${invitationId}/settings`}>Kelola →</TextLink></div></div>
           </CardContent></Card>
         </section>
