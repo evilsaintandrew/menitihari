@@ -195,7 +195,7 @@ const themesById = new Map(THEME_REGISTRY.map((theme) => [theme.id, theme]));
 
 export function getThemeDefinition(
   themeId: string,
-  themeVersion = CURRENT_THEME_VERSION,
+  themeVersion: string = CURRENT_THEME_VERSION,
 ): ThemeDefinition | null {
   const theme = themesById.get(themeId as ThemeId);
   return theme?.version === themeVersion ? theme : null;
@@ -207,6 +207,37 @@ export function getDefaultThemeConfig(themeId: ThemeId): ThemeConfig {
 
 export function parseThemeConfig(value: unknown): ThemeConfig {
   return themeConfigSchema.parse(value);
+}
+
+export interface ResolvedThemePresentation {
+  readonly definition: ThemeDefinition;
+  readonly config: ThemeConfig;
+  readonly usedFallback: boolean;
+}
+
+/**
+ * Resolve only presentation data for the renderer. Unknown versions and
+ * malformed persisted configuration fail closed to the first launch theme;
+ * lifecycle and invitation rules remain outside the theme module.
+ */
+export function resolveThemeForRender(
+  themeId: string,
+  themeVersion: string,
+  themeConfig: unknown,
+): ResolvedThemePresentation {
+  const definition = getThemeDefinition(themeId, themeVersion);
+  const parsedConfig = definition ? themeConfigSchema.safeParse(themeConfig) : null;
+
+  if (definition && parsedConfig?.success) {
+    return { definition, config: parsedConfig.data, usedFallback: false };
+  }
+
+  const fallback = THEME_REGISTRY[0];
+  return {
+    definition: fallback,
+    config: fallback.defaultConfig,
+    usedFallback: true,
+  };
 }
 
 export const themeSelectionInputSchema = z

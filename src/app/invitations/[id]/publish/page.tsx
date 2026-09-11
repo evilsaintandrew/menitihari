@@ -103,6 +103,9 @@ export default async function PublishReadinessPage({
               publicationState={readiness.publicationState}
               canPublish={canPublish}
             />
+            <TextLink className="ui-button ui-button-secondary" href={`/invitations/${id}/preview`}>
+              Preview lagi
+            </TextLink>
           </CardContent>
         </Card>
       </div>
