@@ -6,6 +6,7 @@ import type {
   InvitationContent,
   InvitationRenderData,
   InvitationRenderEvent,
+  InvitationSectionId,
 } from "@/modules/invitations";
 import type { ResolvedThemePresentation } from "@/modules/themes";
 
@@ -98,31 +99,43 @@ function renderOptionalSections(
   language: "id" | "en",
 ): ReactNode[] {
   const copy = labels[language];
-  const sections: Record<string, ReactNode> = {
-    opening_closing: (content.optional.opening || content.optional.closing) && <OptionalSection key="opening_closing">{content.optional.opening && <p className="invitation-renderer-lede">{content.optional.opening}</p>}{content.optional.closing && <p className="invitation-renderer-lede">{content.optional.closing}</p>}</OptionalSection>,
-    fullNames: content.optional.fullNames && <OptionalSection key="fullNames"><p>{content.optional.fullNames.person1}</p><p>{content.optional.fullNames.person2}</p></OptionalSection>,
-    parentFields: content.optional.parentFields && <OptionalSection key="parentFields"><p className="invitation-renderer-kicker">{copy.parents}</p><p>{[content.optional.parentFields.person1?.father, content.optional.parentFields.person1?.mother].filter(Boolean).join(" & ")}</p><p>{[content.optional.parentFields.person2?.father, content.optional.parentFields.person2?.mother].filter(Boolean).join(" & ")}</p></OptionalSection>,
+  const sections: Record<InvitationSectionId, ReactNode> = {
+    couple: (content.optional.fullNames || content.optional.parentFields) && <OptionalSection key="couple">
+      {content.optional.fullNames && <><p>{content.optional.fullNames.person1}</p><p>{content.optional.fullNames.person2}</p></>}
+      {content.optional.parentFields && <><p className="invitation-renderer-kicker">{copy.parents}</p><p>{[content.optional.parentFields.person1?.father, content.optional.parentFields.person1?.mother].filter(Boolean).join(" & ")}</p><p>{[content.optional.parentFields.person2?.father, content.optional.parentFields.person2?.mother].filter(Boolean).join(" & ")}</p></>}
+    </OptionalSection>,
     events: events.length > 0 && <OptionalSection className="invitation-renderer-events" key="events"><p className="invitation-renderer-kicker">{copy.events}</p><ul>{events.map((event) => <EventCard event={event} language={language} timezone={timezone} key={event.id} />)}</ul></OptionalSection>,
+    opening_closing: (content.optional.opening || content.optional.closing || content.optional.quoteOrPrayer) && <OptionalSection key="opening_closing">
+      {content.optional.opening && <p className="invitation-renderer-lede">{content.optional.opening}</p>}
+      {content.optional.closing && <p className="invitation-renderer-lede">{content.optional.closing}</p>}
+      {content.optional.quoteOrPrayer && <><p className="invitation-renderer-kicker">{copy.quote}</p><blockquote>{content.optional.quoteOrPrayer}</blockquote></>}
+    </OptionalSection>,
     love_story: content.optional.loveStory && <OptionalSection key="love_story"><p className="invitation-renderer-kicker">{copy.story}</p><ol className="invitation-renderer-story">{content.optional.loveStory.milestones.map((milestone) => <li key={`${milestone.title}-${milestone.date ?? ""}`}><strong>{milestone.title}</strong>{milestone.date && <span>{milestone.date}</span>}{milestone.description && <p>{milestone.description}</p>}</li>)}</ol></OptionalSection>,
-    quote: content.optional.quoteOrPrayer && <OptionalSection key="quote"><p className="invitation-renderer-kicker">{copy.quote}</p><blockquote>{content.optional.quoteOrPrayer}</blockquote></OptionalSection>,
+    gallery: null,
+    music: null,
+    gift: null,
+    rsvp: null,
+    guestbook: null,
   };
-  const order = content.sectionOrder ?? ["opening_closing", "fullNames", "parentFields", "events", "love_story", "quote"];
+  const order = content.sectionOrder ?? ["couple", "events", "opening_closing", "love_story"];
   const rendered = order.map((section) => sections[section]).filter(Boolean);
   return rendered.length > 0 ? rendered : events.length > 0 ? [sections.events] : [];
 }
 
 export function InvitationThemeView({ invitation, theme }: InvitationThemeViewProps) {
   const copy = labels[invitation.language];
+  const accentColor = theme.definition.accentOptions.find(({ id }) => id === theme.config.accent)?.color ?? theme.definition.preview.accentColor;
   const style = {
     "--invitation-background": theme.definition.preview.backgroundColor,
     "--invitation-foreground": theme.definition.preview.foregroundColor,
-    "--invitation-accent": theme.definition.preview.accentColor,
+    "--invitation-accent": accentColor,
   } as CSSProperties;
 
   return (
     <article
       className={`invitation-renderer invitation-theme-${theme.definition.id} invitation-cover-${theme.config.coverStyle} invitation-sections-${theme.config.sectionStyle} ${fontClasses[theme.config.fontPairing]}`}
       data-theme={theme.definition.id}
+      data-accent={theme.config.accent}
       data-theme-fallback={theme.usedFallback ? "true" : "false"}
       style={style}
     >

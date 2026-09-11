@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
-import { createInvitation, saveInvitationContent, type PublicCacheInvalidator } from "@/modules/invitations";
+import { createInvitation, saveInvitationContent, type InvitationContent, type PublicCacheInvalidator } from "@/modules/invitations";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -25,18 +25,20 @@ describe("invitation editor PostgreSQL integration", () => {
       mainEventDate: "2026-12-20",
     });
     const cache = cacheFor();
-    const content = {
+    const content: InvitationContent = {
       language: "id" as const,
       core: { coupleDisplayName1: "Alya Putri", coupleDisplayName2: "Bima Pratama" },
       optional: { opening: "Selamat datang", closing: "Sampai jumpa" },
+      sectionOrder: ["couple", "events", "opening_closing", "rsvp"],
     };
+    const themeConfig = { accent: "blush" as const, fontPairing: "script-sans" as const, coverStyle: "framed" as const, sectionStyle: "soft" as const };
 
     try {
       await expect(saveInvitationContent(
         testPrisma!,
         owner.id,
         created.id,
-        { expectedVersion: 1, content },
+        { expectedVersion: 1, content, themeConfig },
         { cache },
       )).resolves.toMatchObject({ version: 2, changed: true });
 
@@ -44,6 +46,7 @@ describe("invitation editor PostgreSQL integration", () => {
         version: 2,
         coupleDisplayName1: "Alya Putri",
         coupleDisplayName2: "Bima Pratama",
+        themeConfig,
         content: { opening: "Selamat datang", closing: "Sampai jumpa" },
       });
       expect(cache.invalidateInvitation).toHaveBeenCalledTimes(1);

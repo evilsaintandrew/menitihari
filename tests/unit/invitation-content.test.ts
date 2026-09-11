@@ -84,6 +84,11 @@ describe("invitation content contract", () => {
       sectionOrder: ["couple", "couple"],
     }).success).toBe(false);
     expect(invitationContentSchema.safeParse({
+      language: "en",
+      core,
+      sectionOrder: ["love_story"],
+    }).success).toBe(false);
+    expect(invitationContentSchema.safeParse({
       language: "id",
       core,
       themeId: "classic",

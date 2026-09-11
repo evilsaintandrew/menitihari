@@ -73,4 +73,42 @@ describe("shared invitation renderer", () => {
     expect(screen.queryByText(/raw guest email|token/)).toBeNull();
     consoleError.mockRestore();
   });
+
+  it("uses the persisted section order and selected theme accent", () => {
+    render(<InvitationRenderer invitation={{
+      ...invitation,
+      themeConfig: { accent: "blush", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" },
+      content: {
+        ...invitation.content,
+        optional: {
+          opening: "Opening copy",
+          loveStory: { milestones: [{ title: "Bertemu" }] },
+        },
+        sectionOrder: ["couple", "love_story", "events", "opening_closing"],
+      },
+      events: [{
+        id: "event-1",
+        name: "Resepsi",
+        startsAt: "2026-12-20T03:00:00.000Z",
+        endsAt: null,
+        timezone: "Asia/Jakarta",
+        venue: null,
+        address: null,
+        mapsUrl: null,
+        locationNote: null,
+        livestreamUrl: null,
+        dressCode: null,
+      }],
+    }} />);
+
+    const article = screen.getByRole("article");
+    const sections = Array.from(article.querySelectorAll(".invitation-renderer-section"));
+    expect(article.getAttribute("data-accent")).toBe("blush");
+    expect(article.style.getPropertyValue("--invitation-accent")).toBe("#df86a8");
+    expect(sections.map((section) => section.textContent)).toEqual([
+      expect.stringContaining("Kisah Kami"),
+      expect.stringContaining("Rangkaian Acara"),
+      expect.stringContaining("Opening copy"),
+    ]);
+  });
 });

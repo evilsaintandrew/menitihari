@@ -25,6 +25,9 @@ function invitation(overrides: Record<string, unknown> = {}) {
     commercialState: CommercialState.TRIAL,
     trialEndsAt: new Date("2026-09-13T08:30:00.000Z"),
     activeUntil: null,
+    themeId: "classic",
+    themeVersion: "1",
+    themeConfig: { accent: "rose", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" },
     ...overrides,
   };
 }
@@ -89,6 +92,9 @@ describe("invitation content autosave", () => {
       where: { invitationId },
       update: expect.objectContaining({ opening: "Selamat datang", closing: "Sampai jumpa" }),
     }));
+    expect(transaction.invitation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ themeConfig: invitation().themeConfig }),
+    }));
     expect(transaction.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: "invitation.content_saved" }),
     }));
@@ -132,5 +138,19 @@ describe("invitation content autosave", () => {
 
     expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
     expect(cache.invalidateInvitation).not.toHaveBeenCalled();
+  });
+
+  it("rejects an accent that the active theme does not support", async () => {
+    const transaction = transactionFor();
+
+    await expect(saveInvitationContent(
+      databaseFor(transaction),
+      userId,
+      invitationId,
+      { expectedVersion: 1, content, themeConfig: { accent: "ocean", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" } },
+      { now: () => now },
+    )).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+    expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
   });
 });
