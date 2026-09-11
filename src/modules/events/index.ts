@@ -61,11 +61,19 @@ export const eventInputSchema = z
 
 export type EventInput = z.infer<typeof eventInputSchema>;
 
+export const eventCancellationSchema = z
+  .object({
+    message: z.string().trim().max(500, "Pesan pembatalan maksimal 500 karakter.").optional(),
+  })
+  .strict();
+
+export type EventCancellationInput = z.infer<typeof eventCancellationSchema>;
+
 export interface EventMutationResult {
   readonly eventId: string;
   readonly invitationVersion: number;
   readonly changed: boolean;
-  readonly mode: "created" | "updated" | "archived" | "deleted" | "primary";
+  readonly mode: "created" | "updated" | "cancelled" | "archived" | "deleted" | "primary";
 }
 
 export interface EventEditorItem {
@@ -80,6 +88,8 @@ export interface EventEditorItem {
   readonly timezone: string;
   readonly isPrimary: boolean;
   readonly visibility: EventVisibility;
+  readonly cancelledAt: string | null;
+  readonly cancellationMessage: string | null;
   readonly venue: string | null;
   readonly address: string | null;
   readonly mapsUrl: string | null;
@@ -127,6 +137,8 @@ const editorSelect = {
       timezone: true,
       isPrimary: true,
       visibility: true,
+      cancelledAt: true,
+      cancellationMessage: true,
       venue: true,
       address: true,
       mapsUrl: true,
@@ -324,6 +336,8 @@ function toEditorItem(event: EditorRecord["events"][number]): EventEditorItem {
     timezone: event.timezone,
     isPrimary: event.isPrimary,
     visibility: event.visibility,
+    cancelledAt: event.cancelledAt?.toISOString() ?? null,
+    cancellationMessage: event.cancellationMessage,
     venue: event.venue,
     address: event.address,
     mapsUrl: event.mapsUrl,
@@ -419,6 +433,58 @@ export async function setPrimaryEvent(
   return result;
 }
 
+export async function cancelEvent(
+  database: EventDatabase,
+  userId: string,
+  invitationId: string,
+  eventId: string,
+  input: EventCancellationInput,
+  options: EventServiceOptions = {},
+): Promise<EventMutationResult> {
+  const parsedInput = eventCancellationSchema.parse(input);
+  const now = options.now?.() ?? new Date();
+  if (!Number.isFinite(now.getTime())) throw new Error("Event clock is invalid");
+
+  const result = await database.$transaction(async (transaction) => {
+    const invitation = await transaction.invitation.findFirst({
+      where: { id: invitationId, ...ownerMembershipWhere(userId) },
+      select: { id: true, version: true, commercialState: true, trialEndsAt: true, activeUntil: true },
+    });
+    if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
+
+    const event = await transaction.event.findFirst({
+      where: { id: eventId, invitationId, archivedAt: null },
+      select: { id: true, cancelledAt: true },
+    });
+    if (!event) throw new DomainError(ERROR_CODES.NOT_FOUND);
+    if (event.cancelledAt !== null) {
+      return { eventId, invitationVersion: invitation.version, changed: false, mode: "cancelled" } satisfies EventMutationResult;
+    }
+
+    const invitationVersion = await assertEditableAndLock(transaction, userId, invitation, now);
+    await transaction.event.update({
+      where: { id: eventId },
+      data: {
+        cancelledAt: now,
+        cancellationMessage: optionalValue(parsedInput.message),
+      },
+    });
+    await writeAuditEvent(transaction, {
+      actorId: userId,
+      invitationId,
+      resourceType: "event",
+      resourceId: eventId,
+      action: "event.cancelled",
+      metadata: { has_notice: Boolean(parsedInput.message) },
+      createdAt: now,
+    });
+    return { eventId, invitationVersion, changed: true, mode: "cancelled" } satisfies EventMutationResult;
+  });
+
+  await invalidate(options, invitationId, result.changed);
+  return result;
+}
+
 export async function removeEvent(
   database: EventDatabase,
   userId: string,
@@ -435,11 +501,11 @@ export async function removeEvent(
     if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
     const event = await transaction.event.findFirst({
       where: { id: eventId, invitationId, archivedAt: null },
-      select: { id: true, isPrimary: true, guestEvents: { select: { rsvp: { select: { id: true } }, attendance: { select: { id: true } } } } },
+      select: { id: true, isPrimary: true, cancelledAt: true, guestEvents: { select: { rsvp: { select: { id: true } }, attendance: { select: { id: true } } } } },
     });
     if (!event) throw new DomainError(ERROR_CODES.NOT_FOUND);
     const invitationVersion = await assertEditableAndLock(transaction, userId, invitation, now);
-    const hasHistory = event.guestEvents.some(({ rsvp, attendance }) => rsvp !== null || attendance !== null);
+    const hasHistory = event.cancelledAt !== null || event.guestEvents.some(({ rsvp, attendance }) => rsvp !== null || attendance !== null);
     const nextPrimary = event.isPrimary || invitation.primaryEventId === eventId
       ? await transaction.event.findFirst({ where: { invitationId, id: { not: eventId }, archivedAt: null }, orderBy: { startsAt: "asc" }, select: { id: true } })
       : null;

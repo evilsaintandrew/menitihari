@@ -98,6 +98,8 @@ describe("shared invitation renderer", () => {
         locationNote: null,
         livestreamUrl: null,
         dressCode: null,
+        cancelledAt: "2026-09-11T08:30:00.000Z",
+        cancellationMessage: "Acara dipindahkan ke minggu depan.",
       }],
     }} />);
 
@@ -110,6 +112,8 @@ describe("shared invitation renderer", () => {
       expect.stringContaining("Rangkaian Acara"),
       expect.stringContaining("Opening copy"),
     ]);
+    expect(screen.getByRole("status").textContent).toContain("Acara dibatalkan");
+    expect(screen.getByText("Acara dipindahkan ke minggu depan.")).toBeTruthy();
   });
 
   it("renders optional couple details, social links, quote, hashtag, and Love Story content", () => {

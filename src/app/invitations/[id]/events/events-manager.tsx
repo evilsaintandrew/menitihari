@@ -24,6 +24,7 @@ import type { CommercialState, EventVisibility } from "@/generated/prisma/client
 import type { EventEditorItem, InvitationEventEditorData } from "@/modules/events";
 
 import {
+  cancelEventAction,
   removeEventAction,
   saveEventAction,
   setPrimaryEventAction,
@@ -74,6 +75,7 @@ function EventForm({ invitationId, invitationTimezone, event, canEdit }: { reado
   const [expanded, setExpanded] = useState(event === null);
   useEffect(() => { if (state.ok) router.refresh(); }, [router, state.ok]);
   const isNew = event === null;
+  const isCancelled = event !== null && event.cancelledAt !== null;
   const [isPrimary, setIsPrimary] = useState(event?.isPrimary ?? false);
 
   return (
@@ -155,7 +157,30 @@ function EventForm({ invitationId, invitationTimezone, event, canEdit }: { reado
           </CardFooter>
         </form>
       )}
+      {!isNew && <CancelEventAction canEdit={canEdit} event={event} invitationId={invitationId} isCancelled={isCancelled} />}
     </Card>
+  );
+}
+
+function CancelEventAction({ invitationId, event, canEdit, isCancelled }: { readonly invitationId: string; readonly event: EventEditorItem; readonly canEdit: boolean; readonly isCancelled: boolean }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(cancelEventAction, initialEventActionState);
+  useEffect(() => { if (state.ok) router.refresh(); }, [router, state.ok]);
+  if (isCancelled) {
+    return <Alert className="events-cancelled" role="status" tone="warning" title="Acara dibatalkan">{event.cancellationMessage || "Tamu akan melihat bahwa acara ini dibatalkan."}</Alert>;
+  }
+  return (
+    <form action={action} className="events-cancellation-form" onSubmit={(submitEvent) => { if (!window.confirm(`Tandai acara “${event.name}” sebagai dibatalkan?`)) submitEvent.preventDefault(); }}>
+      <input name="invitationId" type="hidden" value={invitationId} />
+      <input name="eventId" type="hidden" value={event.id} />
+      <Field htmlFor={`${event.id}-cancellation-message`}>
+        <FieldLabel>Pesan pembatalan <span>(opsional)</span></FieldLabel>
+        <Textarea defaultValue={event.cancellationMessage ?? ""} disabled={!canEdit || pending} id={`${event.id}-cancellation-message`} maxLength={500} name="message" placeholder="Contoh: Acara dipindahkan ke tanggal lain." />
+        <FieldHint>Pesan ini akan tampil pada kartu acara untuk tamu yang dapat melihatnya.</FieldHint>
+      </Field>
+      <Button disabled={!canEdit || pending} type="submit" variant="danger">{pending ? "Membatalkan…" : "Tandai acara dibatalkan"}</Button>
+      <EventActionMessage state={state} />
+    </form>
   );
 }
 

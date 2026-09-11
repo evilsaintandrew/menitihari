@@ -79,7 +79,7 @@ content.
 -   contact fields
 -   RSVP settings
 -   check-in window
--   cancellation/archive fields
+-   cancellation/archive fields, including optional cancellation message
 
 Maximum 5 active/non-deleted events per invitation.
 

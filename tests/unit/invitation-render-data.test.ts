@@ -48,6 +48,7 @@ const baseRecord = {
       dressCode: null,
       contactFields: null,
       cancelledAt: null,
+      cancellationMessage: null,
       archivedAt: null,
     },
     {
@@ -65,6 +66,7 @@ const baseRecord = {
       dressCode: null,
       contactFields: null,
       cancelledAt: null,
+      cancellationMessage: null,
       archivedAt: null,
     },
   ],
@@ -81,17 +83,18 @@ describe("invitation render data", () => {
     expect(publicData.events.map(({ id }) => id)).toEqual(["event-generic"]);
   });
 
-  it("removes cancelled and archived events before the renderer sees them", () => {
+  it("keeps a cancelled generic event with its message but removes archived events", () => {
     const data = buildInvitationRenderData({
       ...baseRecord,
       events: [
         ...baseRecord.events,
-        { ...baseRecord.events[0], id: "cancelled", cancelledAt: new Date() },
+        { ...baseRecord.events[0], id: "cancelled", cancelledAt: new Date(), cancellationMessage: "Dipindahkan ke minggu depan." },
         { ...baseRecord.events[0], id: "archived", archivedAt: new Date() },
       ],
     }, "public");
 
-    expect(data.events.map(({ id }) => id)).toEqual(["event-generic"]);
+    expect(data.events.map(({ id }) => id)).toEqual(["event-generic", "cancelled"]);
+    expect(data.events[1]).toMatchObject({ cancellationMessage: "Dipindahkan ke minggu depan." });
   });
 
   it("serializes dates at the server boundary and preserves safe text content", () => {

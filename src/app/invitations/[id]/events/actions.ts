@@ -6,6 +6,8 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { DomainError, toPublicError } from "@/modules/errors";
 import {
+  cancelEvent,
+  eventCancellationSchema,
   eventInputSchema,
   removeEvent,
   saveEvent,
@@ -60,6 +62,14 @@ function validationState(error: z.ZodError): EventActionState {
     if (typeof field === "string" && fieldErrors[field] === undefined) fieldErrors[field] = issue.message;
   }
   return { ok: false, errorCode: "VALIDATION_FAILED", message: "Periksa kembali detail acara.", fieldErrors };
+}
+
+function cancellationValidationState(error: z.ZodError): EventActionState {
+  return {
+    ok: false,
+    errorCode: "VALIDATION_FAILED",
+    message: error.issues[0]?.message ?? "Pesan pembatalan belum valid.",
+  };
 }
 
 async function ownerId(): Promise<string | null> {
@@ -118,5 +128,35 @@ export async function removeEventAction(
   } catch (error) {
     if (error instanceof DomainError) return { ok: false, errorCode: toPublicError(error).code, message: toPublicError(error).message };
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Acara belum dihapus. Coba lagi." };
+  }
+}
+
+export async function cancelEventAction(
+  _previousState: EventActionState,
+  formData: FormData,
+): Promise<EventActionState> {
+  const parsed = eventCancellationSchema.safeParse({
+    message: stringValue(formData, "message") || undefined,
+  });
+  if (!parsed.success) return cancellationValidationState(parsed.error);
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+  try {
+    const result = await cancelEvent(
+      prisma,
+      userId,
+      stringValue(formData, "invitationId"),
+      stringValue(formData, "eventId"),
+      parsed.data,
+      { cache: nextPublicCacheInvalidator },
+    );
+    return { ok: true, eventId: result.eventId, message: "Acara ditandai sebagai dibatalkan." };
+  } catch (error) {
+    if (error instanceof z.ZodError) return cancellationValidationState(error);
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return { ok: false, errorCode: publicError.code, message: publicError.message };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Status acara belum diperbarui. Coba lagi." };
   }
 }

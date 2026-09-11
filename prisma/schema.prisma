@@ -381,6 +381,7 @@ model Event {
   checkInOpensAt  DateTime?       @map("check_in_opens_at") @db.Timestamptz(3)
   checkInClosesAt DateTime?       @map("check_in_closes_at") @db.Timestamptz(3)
   cancelledAt     DateTime?       @map("cancelled_at") @db.Timestamptz(3)
+  cancellationMessage String?     @map("cancellation_message")
   archivedAt      DateTime?       @map("archived_at") @db.Timestamptz(3)
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)

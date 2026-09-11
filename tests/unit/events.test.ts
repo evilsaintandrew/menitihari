@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CommercialState, EventVisibility } from "@/generated/prisma/client";
 import {
+  cancelEvent,
   eventDateTimeFields,
   eventInputSchema,
   localDateTimeToInstant,
@@ -40,11 +41,12 @@ function transactionFor() {
       update: vi.fn().mockResolvedValue({}),
     },
     event: {
-      findFirst: vi.fn().mockResolvedValue({ id: "event-2", isPrimary: false }),
+      findFirst: vi.fn().mockResolvedValue({ id: "event-2", isPrimary: false, cancelledAt: null, guestEvents: [] }),
       count: vi.fn().mockResolvedValue(1),
       create: vi.fn().mockResolvedValue({ id: "event-new" }),
       update: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      delete: vi.fn().mockResolvedValue({}),
     },
     auditEvent: { create: vi.fn().mockResolvedValue({ id: "audit-1" }) },
   };
@@ -111,6 +113,25 @@ describe("event domain", () => {
     expect(transaction.event.updateMany).toHaveBeenCalledWith({ where: { invitationId: invitation.id }, data: { isPrimary: false } });
     expect(transaction.event.update).toHaveBeenCalledWith({ where: { id: "event-2" }, data: { isPrimary: true } });
     expect(transaction.invitation.update).toHaveBeenCalledWith({ where: { id: invitation.id }, data: { primaryEventId: "event-2" } });
+  });
+
+  it("cancels an event with an optional message and audits without exposing the message", async () => {
+    const transaction = transactionFor();
+    const cache = { invalidateInvitation: vi.fn() };
+    await expect(cancelEvent(databaseFor(transaction), "owner-1", invitation.id, "event-2", { message: "Acara dipindahkan." }, { now: () => now, cache })).resolves.toMatchObject({ mode: "cancelled", changed: true });
+    expect(transaction.event.update).toHaveBeenCalledWith({ where: { id: "event-2" }, data: { cancelledAt: now, cancellationMessage: "Acara dipindahkan." } });
+    expect(transaction.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "event.cancelled", metadata: { has_notice: true } }) }));
+    expect(transaction.auditEvent.create).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ metadata: expect.objectContaining({ message: expect.anything() }) }) }));
+    expect(cache.invalidateInvitation).toHaveBeenCalledWith(invitation.id);
+  });
+
+  it("archives a cancelled event instead of hard deleting it", async () => {
+    const transaction = transactionFor();
+    transaction.event.findFirst.mockResolvedValue({ id: "event-2", isPrimary: false, cancelledAt: now, guestEvents: [] });
+    const { removeEvent } = await import("@/modules/events");
+    await expect(removeEvent(databaseFor(transaction), "owner-1", invitation.id, "event-2", { now: () => now })).resolves.toMatchObject({ mode: "archived" });
+    expect(transaction.event.update).toHaveBeenCalledWith({ where: { id: "event-2" }, data: { archivedAt: now, isPrimary: false } });
+    expect(transaction.event.delete).not.toHaveBeenCalled();
   });
 
   it("rejects mutations after the invitation becomes read-only", async () => {

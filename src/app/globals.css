@@ -394,6 +394,9 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .events-form-actions { align-items: center; gap: 10px; margin-top: 2px; padding: 0; }
 .events-form-actions form { display: contents; }
 .events-form-actions .ui-alert { flex: 1 1 100%; }
+.events-cancellation-form { border-top: 1px solid var(--color-border); display: grid; gap: 12px; margin-top: 18px; padding-top: 18px; }
+.events-cancellation-form .ui-button { justify-self: start; }
+.events-cancelled { margin-top: 18px; }
 .invitation-renderer-event-links { display: flex; flex-wrap: wrap; gap: 10px; }
 .invitation-renderer-event-links a { color: var(--invitation-accent); font-size: 13px; font-weight: 800; text-decoration: underline; }
 @media (max-width: 900px) {
@@ -450,6 +453,7 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-renderer-event { background: color-mix(in srgb, var(--invitation-accent) 8%, transparent); border-left: 3px solid var(--invitation-accent); display: grid; gap: 6px; padding: 14px 16px; }
 .invitation-renderer-event h3 { color: var(--invitation-foreground); font-size: 18px; }
 .invitation-renderer-event p { font-size: 14px; }
+.invitation-renderer-event-cancelled { color: var(--color-warning); font-weight: 700; }
 .invitation-renderer-story { display: grid; gap: 18px; list-style: none; margin: 0; padding: 0; text-align: left; }
 .invitation-renderer-story li { display: grid; gap: 2px; padding-left: 18px; position: relative; }
 .invitation-renderer-story li::before { background: var(--invitation-accent); border-radius: 50%; content: ""; height: 8px; left: 0; position: absolute; top: 8px; width: 8px; }

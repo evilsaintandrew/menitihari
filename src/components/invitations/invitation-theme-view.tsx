@@ -101,6 +101,7 @@ function EventCard({ event, timezone, language }: {
         <h3>{event.name}</h3>
         <p>{formatDate(event.startsAt, event.timezone || timezone, language)} · {formatTime(event.startsAt, event.timezone || timezone)}</p>
       </div>
+      {event.cancelledAt && <p className="invitation-renderer-event-cancelled" role="status"><strong>Acara dibatalkan.</strong>{event.cancellationMessage ? ` ${event.cancellationMessage}` : ""}</p>}
       {(event.venue || event.address) && (
         <p className="invitation-renderer-muted">{[event.venue, event.address].filter(Boolean).join(" · ")}</p>
       )}
