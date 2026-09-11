@@ -296,6 +296,11 @@ Persistent capacity indicator:
 
 Near capacity, show warning before mutations fail.
 
+Guest name and phone values are normalized for duplicate detection. A
+possible duplicate is a warning only: saving never silently merges rows.
+The owner must review and explicitly choose how conflicting RSVP/check-in
+histories are handled before using the manual merge workflow.
+
 ### Add Guest
 
 Keep initial form short:

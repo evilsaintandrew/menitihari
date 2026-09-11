@@ -56,7 +56,9 @@ Use the smallest test layer that proves the behavior:
 -   party capacity counts people;
 -   500 entitlement;
 -   concurrent capacity-increasing mutations cannot exceed cap;
--   duplicate warning;
+-   normalized name/phone duplicate warning without auto-merge;
+-   manual merge requires explicit choices for conflicting histories;
+-   merge archives/links the source and preserves relevant history;
 -   archive with history;
 -   restore creates new credentials;
 -   CSV import validation/preview/idempotency.

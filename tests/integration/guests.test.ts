@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
-import { archiveGuest, saveGuest } from "@/modules/guests";
+import { archiveGuest, mergeGuests, saveGuest } from "@/modules/guests";
 import { createInvitation } from "@/modules/invitations";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
@@ -65,6 +65,42 @@ describe("guest CRUD PostgreSQL integration", () => {
         where: { state: "ACTIVE", guest: { invitationId: invitation.id, archivedAt: null } },
         _sum: { maxPartySize: true },
       })).resolves.toMatchObject({ _sum: { maxPartySize: 500 } });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+
+  it.skipIf(!testDatabaseUrl)("warns on normalized duplicates and preserves source history during merge", async () => {
+    const owner = await testPrisma!.user.create({ data: { email: `merge-${Date.now()}@example.com`, emailVerified: true } });
+    const invitation = await createInvitation(testPrisma!, owner.id, { coupleDisplayName1: "Alya", coupleDisplayName2: "Bima", mainEventDate: "2026-12-20" });
+    try {
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const source = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Bpk. Andi",
+        phone: "0812 3456 7890",
+        assignments: [{ eventId: event.id, maxPartySize: 2 }],
+      });
+      const target = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Bpk Andi",
+        phone: "+62 812 3456 7890",
+        assignments: [{ eventId: event.id, maxPartySize: 3 }],
+      });
+
+      expect(target.duplicateWarnings).toEqual(expect.arrayContaining([expect.objectContaining({ guestId: source.guestId, matchingSignals: ["PHONE", "NAME"] })]));
+      const sourceAssignment = await testPrisma!.guestEvent.findFirstOrThrow({ where: { guestId: source.guestId } });
+      await testPrisma!.rSVP.create({ data: { guestEventId: sourceAssignment.id, status: "ATTENDING", attendanceCount: 2 } });
+
+      await expect(mergeGuests(testPrisma!, owner.id, invitation.id, {
+        sourceGuestId: source.guestId,
+        targetGuestId: target.guestId,
+        conflictResolutions: [{ eventId: event.id, keep: "SOURCE" }],
+      })).resolves.toMatchObject({ mode: "merged", sourceGuestId: source.guestId, targetGuestId: target.guestId });
+
+      const archivedSource = await testPrisma!.guest.findUniqueOrThrow({ where: { id: source.guestId }, include: { eventAssignments: { include: { rsvp: true } } } });
+      expect(archivedSource).toMatchObject({ archivedAt: expect.any(Date), mergedIntoGuestId: target.guestId });
+      expect(archivedSource.eventAssignments[0]).toMatchObject({ state: "REMOVED", rsvp: { status: "ATTENDING", attendanceCount: 2 } });
     } finally {
       await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
       await testPrisma!.invitation.delete({ where: { id: invitation.id } });

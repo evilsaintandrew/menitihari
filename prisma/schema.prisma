@@ -414,6 +414,7 @@ model Guest {
   id                  String    @id @default(cuid())
   invitationId        String    @map("invitation_id")
   displayName         String    @map("display_name")
+  normalizedName      String    @map("normalized_name")
   normalizedPhone     String?   @map("normalized_phone")
   displayPhone        String?   @map("display_phone")
   notes               String?
@@ -422,6 +423,8 @@ model Guest {
   distributionStatus  String?   @map("distribution_status")
   lastViewedAt        DateTime? @map("last_viewed_at") @db.Timestamptz(3)
   archivedAt          DateTime? @map("archived_at") @db.Timestamptz(3)
+  mergedIntoGuestId   String?   @map("merged_into_guest_id")
+  mergedAt            DateTime? @map("merged_at") @db.Timestamptz(3)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -432,8 +435,11 @@ model Guest {
   sessions              GuestSession[]
   wishes                Wish[]
   qrCredentials         QRCredential[]
+  mergedInto            Guest?                      @relation("GuestMergeTarget", fields: [mergedIntoGuestId], references: [id], onDelete: SetNull)
+  mergedSources         Guest[]                     @relation("GuestMergeTarget")
 
   @@index([invitationId, archivedAt])
+  @@index([invitationId, normalizedName])
   @@index([invitationId, normalizedPhone])
   @@map("guests")
 }

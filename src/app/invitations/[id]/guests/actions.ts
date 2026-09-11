@@ -5,16 +5,33 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { DomainError, toPublicError } from "@/modules/errors";
-import { archiveGuest, guestInputSchema, saveGuest } from "@/modules/guests";
+import {
+  archiveGuest,
+  getGuestMergePreview,
+  guestInputSchema,
+  guestMergeInputSchema,
+  mergeGuests,
+  saveGuest,
+  type GuestDuplicateWarning,
+  type GuestMergePreview,
+} from "@/modules/guests";
 import { prisma } from "@/server/db";
 
 export interface GuestActionState {
   readonly ok: boolean;
   readonly guestId?: string;
-  readonly mode?: "created" | "updated" | "archived" | "deleted";
+  readonly mode?: "created" | "updated" | "archived" | "deleted" | "merged";
+  readonly duplicateWarnings?: readonly GuestDuplicateWarning[];
   readonly errorCode?: string;
   readonly message?: string;
   readonly fieldErrors?: Readonly<Record<string, string>>;
+}
+
+export interface GuestMergePreviewActionState {
+  readonly ok: boolean;
+  readonly preview?: GuestMergePreview;
+  readonly errorCode?: string;
+  readonly message?: string;
 }
 
 function stringValue(formData: FormData, key: string): string {
@@ -73,6 +90,7 @@ export async function saveGuestAction(
       ok: true,
       guestId: result.guestId,
       mode: result.mode,
+      duplicateWarnings: result.duplicateWarnings,
       message: result.mode === "created" ? "Tamu ditambahkan." : "Perubahan tamu disimpan.",
     };
   } catch (error) {
@@ -88,6 +106,74 @@ export async function saveGuestAction(
       };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Tamu belum tersimpan. Coba lagi." };
+  }
+}
+
+export async function mergeGuestAction(
+  _previousState: GuestActionState,
+  formData: FormData,
+): Promise<GuestActionState> {
+  const rawResolutions = stringValue(formData, "conflictResolutions");
+  let parsedResolutions: unknown = [];
+  if (rawResolutions) {
+    try {
+      parsedResolutions = JSON.parse(rawResolutions);
+    } catch {
+      return { ok: false, errorCode: "VALIDATION_FAILED", message: "Pilihan riwayat duplikat tidak valid." };
+    }
+  }
+  const parsed = guestMergeInputSchema.safeParse({
+    sourceGuestId: stringValue(formData, "sourceGuestId"),
+    targetGuestId: stringValue(formData, "targetGuestId"),
+    conflictResolutions: parsedResolutions,
+  });
+  if (!parsed.success) return validationState(parsed.error);
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    const result = await mergeGuests(prisma, userId, stringValue(formData, "invitationId"), parsed.data);
+    return {
+      ok: true,
+      guestId: result.guestId,
+      mode: result.mode,
+      message: "Tamu digabungkan. Riwayat duplikat tetap disimpan untuk peninjauan.",
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) return validationState(error);
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return {
+        ok: false,
+        errorCode: publicError.code,
+        message: publicError.code === "CONFLICT"
+          ? "Riwayat tamu bertabrakan. Tinjau dan pilih riwayat yang dipertahankan sebelum menggabungkan."
+          : publicError.message,
+      };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Tamu belum digabungkan. Coba lagi." };
+  }
+}
+
+export async function getGuestMergePreviewAction(
+  _previousState: GuestMergePreviewActionState,
+  formData: FormData,
+): Promise<GuestMergePreviewActionState> {
+  const sourceGuestId = stringValue(formData, "sourceGuestId");
+  const targetGuestId = stringValue(formData, "targetGuestId");
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    const preview = await getGuestMergePreview(prisma, userId, stringValue(formData, "invitationId"), { sourceGuestId, targetGuestId });
+    return { ok: true, preview };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Pilih dua tamu yang berbeda." };
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return { ok: false, errorCode: publicError.code, message: publicError.message };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Riwayat duplikat belum dapat dimuat. Coba lagi." };
   }
 }
 

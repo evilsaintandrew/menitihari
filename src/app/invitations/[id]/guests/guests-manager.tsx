@@ -24,9 +24,17 @@ import {
 } from "@/components/ui";
 import type { GuestManagementData, GuestManagementItem } from "@/modules/guests";
 
-import { archiveGuestAction, saveGuestAction, type GuestActionState } from "./actions";
+import {
+  archiveGuestAction,
+  getGuestMergePreviewAction,
+  mergeGuestAction,
+  saveGuestAction,
+  type GuestActionState,
+  type GuestMergePreviewActionState,
+} from "./actions";
 
 const initialActionState: GuestActionState = { ok: false };
+const initialMergePreviewState: GuestMergePreviewActionState = { ok: false };
 const DEFAULT_MAX_PARTY_SIZE = "1";
 
 function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
@@ -36,6 +44,88 @@ function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
 function GuestActionMessage({ state }: { readonly state: GuestActionState }) {
   if (state.ok || !state.message) return null;
   return <Alert role="alert" tone="danger" title="Perubahan belum tersimpan">{state.message}</Alert>;
+}
+
+function DuplicateWarning({ warnings }: { readonly warnings: GuestActionState["duplicateWarnings"] }) {
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <Alert role="status" tone="warning" title="Kemungkinan duplikat terdeteksi">
+      <p>Tamu tetap disimpan sebagai entri terpisah. Tinjau dan gabungkan secara manual setelah memastikan riwayatnya benar.</p>
+      <ul>
+        {warnings.map((warning) => (
+          <li key={warning.guestId}>
+            {warning.displayName}{warning.displayPhone ? ` (${warning.displayPhone})` : ""} — sinyal cocok: {warning.matchingSignals.join(" dan ")}
+          </li>
+        ))}
+      </ul>
+    </Alert>
+  );
+}
+
+function GuestMergePanel({
+  invitationId,
+  sourceGuestId,
+  target,
+  canEdit,
+}: {
+  readonly invitationId: string;
+  readonly sourceGuestId: string;
+  readonly target: NonNullable<GuestManagementItem["duplicateWarnings"]>[number];
+  readonly canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [previewState, previewAction, previewPending] = useActionState(getGuestMergePreviewAction, initialMergePreviewState);
+  const [mergeState, mergeAction, mergePending] = useActionState(mergeGuestAction, initialActionState);
+  const [choices, setChoices] = useState<Record<string, "SOURCE" | "TARGET">>({});
+  const preview = previewState.preview;
+
+  useEffect(() => {
+    if (mergeState.ok) router.refresh();
+  }, [mergeState.ok, router]);
+
+  if (!preview) {
+    return (
+      <div className="guests-duplicate-panel">
+        <p className="ui-muted">Kemungkinan duplikat: <strong>{target.displayName}</strong>. Sinyal cocok: {target.matchingSignals.join(" dan ")}.</p>
+        <form action={previewAction}>
+          <input name="invitationId" type="hidden" value={invitationId} />
+          <input name="sourceGuestId" type="hidden" value={sourceGuestId} />
+          <input name="targetGuestId" type="hidden" value={target.guestId} />
+          <Button disabled={!canEdit || previewPending} size="sm" type="submit" variant="secondary">{previewPending ? "Memuat riwayat…" : "Tinjau merge"}</Button>
+        </form>
+        {previewState.message && <Alert role="alert" tone="danger" title="Tinjauan belum tersedia">{previewState.message}</Alert>}
+      </div>
+    );
+  }
+
+  const conflictResolutions = preview.conflicts.map((conflict) => ({ eventId: conflict.eventId, keep: choices[conflict.eventId] ?? "TARGET" }));
+  return (
+    <div className="guests-duplicate-panel">
+      <p><strong>Peninjauan merge:</strong> {preview.source.displayName} → {preview.target.displayName}</p>
+      {preview.conflicts.length === 0 ? (
+        <p className="ui-muted">Tidak ada riwayat RSVP/check-in yang bertabrakan. Penugasan acara yang tidak konflik akan dipindahkan.</p>
+      ) : (
+        <div className="guests-merge-conflicts">
+          <p>Pilih riwayat yang dianggap utama untuk setiap acara yang bertabrakan. Riwayat lain tetap disimpan.</p>
+          {preview.conflicts.map((conflict) => (
+            <fieldset key={conflict.eventId}>
+              <legend>{conflict.eventName}</legend>
+              <label><input checked={(choices[conflict.eventId] ?? "TARGET") === "TARGET"} disabled={mergePending} name={`keep:${conflict.eventId}`} onChange={() => setChoices((current) => ({ ...current, [conflict.eventId]: "TARGET" }))} type="radio" /> Riwayat tamu utama</label>
+              <label><input checked={choices[conflict.eventId] === "SOURCE"} disabled={mergePending} name={`keep:${conflict.eventId}`} onChange={() => setChoices((current) => ({ ...current, [conflict.eventId]: "SOURCE" }))} type="radio" /> Riwayat duplikat</label>
+            </fieldset>
+          ))}
+        </div>
+      )}
+      <form action={mergeAction}>
+        <input name="invitationId" type="hidden" value={invitationId} />
+        <input name="sourceGuestId" type="hidden" value={sourceGuestId} />
+        <input name="targetGuestId" type="hidden" value={target.guestId} />
+        <input name="conflictResolutions" type="hidden" value={JSON.stringify(conflictResolutions)} />
+        <Button disabled={!canEdit || mergePending} size="sm" type="submit">{mergePending ? "Menggabungkan…" : "Gabungkan setelah tinjauan"}</Button>
+      </form>
+      <GuestActionMessage state={mergeState} />
+    </div>
+  );
 }
 
 function GuestForm({
@@ -141,6 +231,7 @@ function GuestForm({
         )}
       </fieldset>
       <GuestActionMessage state={state} />
+      <DuplicateWarning warnings={state.duplicateWarnings} />
       {state.fieldErrors && Object.keys(state.fieldErrors).length > 0 && <ul className="guests-field-errors">{Object.entries(state.fieldErrors).map(([field, message]) => <li key={field}>{field}: {message}</li>)}</ul>}
       <CardFooter className="guests-form-actions">
         <Button disabled={!canEdit || pending} type="submit">{pending ? "Menyimpan…" : guest ? "Simpan perubahan" : "Simpan tamu"}</Button>
@@ -190,6 +281,7 @@ function GuestCard({ invitationId, groups, events, guest, canEdit }: { readonly 
         {guest.notes && <p className="guests-card-notes">Catatan: {guest.notes}</p>}
       </CardContent>
       {editing && <GuestForm canEdit={canEdit} events={events} groups={groups} guest={guest} invitationId={invitationId} onSaved={() => setEditing(false)} />}
+      {!editing && canEdit && guest.duplicateWarnings?.map((warning) => <GuestMergePanel invitationId={invitationId} key={warning.guestId} sourceGuestId={guest.id} target={warning} canEdit={canEdit} />)}
       {!editing && <CardFooter className="guests-card-actions">
         <Button disabled={!canEdit} onClick={() => setEditing(true)} size="sm" variant="secondary">Edit</Button>
         <ArchiveGuestAction canEdit={canEdit} guest={guest} invitationId={invitationId} />

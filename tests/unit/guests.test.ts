@@ -4,7 +4,9 @@ import { CommercialState, GuestEventState } from "@/generated/prisma/client";
 import {
   archiveGuest,
   getInvitedPeopleCapacity,
+  mergeGuests,
   normalizePhone,
+  normalizeGuestName,
   saveGuest,
 } from "@/modules/guests";
 
@@ -25,6 +27,7 @@ function transactionFor() {
     },
     guest: {
       findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: "guest-new" }),
       update: vi.fn().mockResolvedValue({}),
       delete: vi.fn().mockResolvedValue({}),
@@ -67,6 +70,37 @@ describe("guest domain", () => {
     expect(normalizePhone("+62 (812) 3456-7890")).toBe("+6281234567890");
     expect(normalizePhone("6281234567890")).toBe("+6281234567890");
     expect(normalizePhone("  ")).toBeNull();
+  });
+
+  it("normalizes names conservatively for duplicate signals", () => {
+    expect(normalizeGuestName("  Bpk.  Andi & Keluarga ")).toBe("bpk andi keluarga");
+    expect(normalizeGuestName("BPK ANDI KELUARGA")).toBe("bpk andi keluarga");
+  });
+
+  it("returns duplicate warnings without auto-merging a new guest", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findMany.mockResolvedValue([{
+      id: "guest-existing",
+      displayName: "Bpk Andi",
+      displayPhone: "0812 3456 7890",
+      normalizedName: normalizeGuestName("Bpk Andi"),
+      normalizedPhone: "+6281234567890",
+    }]);
+
+    const result = await saveGuest(databaseFor(transaction), "owner-1", invitation.id, null, {
+      displayName: "Bpk. Andi",
+      phone: "+62 812 3456 7890",
+      assignments: [{ eventId: "event-1", maxPartySize: 1 }],
+    }, { now: () => now });
+
+    expect(result).toMatchObject({ guestId: "guest-new", mode: "created" });
+    expect(result.duplicateWarnings).toEqual([{
+      guestId: "guest-existing",
+      displayName: "Bpk Andi",
+      displayPhone: "0812 3456 7890",
+      matchingSignals: ["PHONE", "NAME"],
+    }]);
+    expect(transaction.guest.create).toHaveBeenCalledTimes(1);
   });
 
   it("persists the owner-defined addressee, original display phone, and one group", async () => {
@@ -217,5 +251,63 @@ describe("guest domain", () => {
 
     await expect(archiveGuest(databaseFor(transaction), "owner-1", invitation.id, "guest-empty", { now: () => now })).resolves.toMatchObject({ mode: "deleted" });
     expect(transaction.guest.delete).toHaveBeenCalledWith({ where: { id: "guest-empty" } });
+  });
+
+  it("requires an explicit choice when both guests have history for the same event", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => where.id === "guest-source"
+      ? {
+        id: "guest-source",
+        displayName: "Andi",
+        displayPhone: null,
+        eventAssignments: [{ id: "source-event", eventId: "event-1", state: GuestEventState.ACTIVE, maxPartySize: 2, event: { name: "Resepsi" }, rsvp: { id: "source-rsvp" }, attendance: null }],
+      }
+      : {
+        id: "guest-target",
+        displayName: "Andi Keluarga",
+        displayPhone: null,
+        eventAssignments: [{ id: "target-event", eventId: "event-1", state: GuestEventState.ACTIVE, maxPartySize: 3, event: { name: "Resepsi" }, rsvp: null, attendance: { id: "target-attendance" } }],
+      });
+
+    await expect(mergeGuests(databaseFor(transaction), "owner-1", invitation.id, {
+      sourceGuestId: "guest-source",
+      targetGuestId: "guest-target",
+      conflictResolutions: [],
+    }, { now: () => now })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(transaction.guest.update).not.toHaveBeenCalled();
+  });
+
+  it("archives the source, moves non-conflicting assignments, and retains conflicting history", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => where.id === "guest-source"
+      ? {
+        id: "guest-source",
+        displayName: "Andi",
+        displayPhone: null,
+        eventAssignments: [
+          { id: "source-event-1", eventId: "event-1", state: GuestEventState.ACTIVE, maxPartySize: 2, event: { name: "Akad" }, rsvp: { id: "source-rsvp" }, attendance: null },
+          { id: "source-event-2", eventId: "event-2", state: GuestEventState.ACTIVE, maxPartySize: 1, event: { name: "Resepsi" }, rsvp: null, attendance: null },
+        ],
+      }
+      : {
+        id: "guest-target",
+        displayName: "Andi Keluarga",
+        displayPhone: null,
+        eventAssignments: [{ id: "target-event-1", eventId: "event-1", state: GuestEventState.ACTIVE, maxPartySize: 3, event: { name: "Akad" }, rsvp: null, attendance: { id: "target-attendance" } }],
+      });
+
+    await expect(mergeGuests(databaseFor(transaction), "owner-1", invitation.id, {
+      sourceGuestId: "guest-source",
+      targetGuestId: "guest-target",
+      conflictResolutions: [{ eventId: "event-1", keep: "TARGET" }],
+    }, { now: () => now })).resolves.toMatchObject({ mode: "merged", sourceGuestId: "guest-source", targetGuestId: "guest-target" });
+
+    expect(transaction.guestEvent.update).toHaveBeenCalledWith({ where: { id: "source-event-2" }, data: { guestId: "guest-target" } });
+    expect(transaction.guestEvent.update).toHaveBeenCalledWith({ where: { id: "source-event-1" }, data: { state: GuestEventState.REMOVED, removedAt: now } });
+    expect(transaction.guest.update).toHaveBeenCalledWith({ where: { id: "guest-source" }, data: { archivedAt: now, mergedIntoGuestId: "guest-target", mergedAt: now } });
+    expect(transaction.guestActivationCredential.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guestId: "guest-source" } }));
+    expect(transaction.guestSession.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guestId: "guest-source", revokedAt: null } }));
+    expect(transaction.qRCredential.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guestId: "guest-source" }) }));
+    expect(transaction.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "guest.merged" }) }));
   });
 });

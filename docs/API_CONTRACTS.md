@@ -84,8 +84,23 @@ Behavior: publication state → published; invalidate cache.
 ### Create/update guest
 
 Auth: owner.\
-Behavior: normalize phone, duplicate warning, capacity check where
+Behavior: normalize name and phone, return matching active guests as a
+warning, and perform no automatic merge. Run the capacity check where
 party/event entitlement changes.
+
+### Preview/merge duplicate guests
+
+Auth: owner.\
+Preview input: invitation id, source guest id, target guest id.\
+Merge input: the same pair plus one explicit `SOURCE` or `TARGET`
+resolution for every overlapping event assignment where either guest has
+RSVP/check-in history.\
+Behavior: re-check ownership and invitation lifecycle in one transaction;
+move source assignments that do not conflict; retain conflicting source
+assignments and their history; archive and link the source to the chosen
+target; revoke source access credentials; and append a minimal audit event.
+The operation never auto-merges from a duplicate warning. Missing or extra
+conflict resolutions fail with `CONFLICT`.
 
 ### Update/cancel event
 

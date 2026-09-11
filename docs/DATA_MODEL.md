@@ -89,12 +89,14 @@ Maximum 5 active/non-deleted events per invitation.
 
 -   `id`, `invitation_id`
 -   `display_name/addressee`
+-   canonical normalized name for duplicate detection
 -   normalized phone + display/original phone
 -   optional notes
 -   `group_id`
 -   default max party size
 -   distribution/view summary fields
 -   archive fields
+-   optional merged-into guest reference and merge timestamp
 -   timestamps
 
 ### GuestGroup
@@ -356,6 +358,10 @@ over-allocation.
 
 -   Historical RSVP/check-in should not disappear because a guest is
     "removed"; archive/inactivate instead.
+-   A manual merge archives the source guest, links it to the target, and
+    retains source relations when histories conflict. Non-conflicting
+    guest-event assignments may be moved to the target in the same
+    transaction.
 -   Event with history is archived/cancelled.
 -   Invitation purge removes operational data in dependency-safe order.
 -   Financial retention is separate.
