@@ -87,6 +87,17 @@ Auth: owner.\
 Behavior: normalize phone, duplicate warning, capacity check where
 party/event entitlement changes.
 
+### Update/cancel event
+
+Auth: owner membership.\
+Input: event id, validated event fields/visibility, and an optional bounded
+cancellation message.\
+Behavior: enforce invitation lifecycle and ownership inside one transaction;
+mark an active event cancelled with its optional message; audit the status
+change with minimal metadata that does not copy the message; and invalidate
+the public invitation cache only after commit. An event with cancellation or
+RSVP/check-in history is archived rather than hard-deleted.
+
 ### Import guests
 
 Auth: owner.\

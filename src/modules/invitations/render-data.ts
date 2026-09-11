@@ -60,6 +60,7 @@ const invitationRenderSelect = {
       dressCode: true,
       contactFields: true,
       cancelledAt: true,
+      cancellationMessage: true,
       archivedAt: true,
     },
   },
@@ -86,6 +87,8 @@ export interface InvitationRenderEvent {
   readonly livestreamUrl: string | null;
   readonly dressCode: string | null;
   readonly contact: EventContact | null;
+  readonly cancelledAt: string | null;
+  readonly cancellationMessage: string | null;
 }
 
 export interface InvitationRenderData {
@@ -171,7 +174,7 @@ export function buildInvitationRenderData(
   mode: InvitationRenderMode,
 ): InvitationRenderData {
   const events = record.events
-    .filter((event) => event.cancelledAt === null && event.archivedAt === null)
+    .filter((event) => event.archivedAt === null)
     // Owner preview is the generic public view. A future guest-preview mode
     // must provide an explicitly scoped guest model rather than widening this
     // shared public renderer input.
@@ -197,6 +200,8 @@ export function buildInvitationRenderData(
       contact: eventContactSchema.safeParse(event.contactFields).success
         ? eventContactSchema.parse(event.contactFields)
         : null,
+      cancelledAt: toIso(event.cancelledAt),
+      cancellationMessage: event.cancellationMessage,
     }));
 
   return {

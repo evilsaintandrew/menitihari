@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { EventVisibility, PrismaClient } from "@/generated/prisma/client";
 import { createInvitation } from "@/modules/invitations";
-import { MAX_EVENTS_PER_INVITATION, saveEvent, setPrimaryEvent } from "@/modules/events";
+import { cancelEvent, MAX_EVENTS_PER_INVITATION, removeEvent, saveEvent, setPrimaryEvent } from "@/modules/events";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -31,7 +31,7 @@ function eventInput(index: number) {
 }
 
 describe("event CRUD PostgreSQL integration", () => {
-  it.skipIf(!testDatabaseUrl)("persists event fields, enforces five events, and changes the primary event", async () => {
+  it.skipIf(!testDatabaseUrl)("persists event fields, enforces five events, changes the primary event, and cancels with a message", async () => {
     const owner = await testPrisma!.user.create({ data: { email: `events-${Date.now()}@example.com`, emailVerified: true } });
     const created = await createInvitation(testPrisma!, owner.id, { coupleDisplayName1: "Alya", coupleDisplayName2: "Bima", mainEventDate: "2026-12-20" });
     try {
@@ -53,6 +53,10 @@ describe("event CRUD PostgreSQL integration", () => {
         contactFields: { name: "Rina", role: "WO", phone: "08123456789" },
       });
       expect(invitation.events.find(({ id }) => id === first.eventId)?.isPrimary).toBe(false);
+      await expect(cancelEvent(testPrisma!, owner.id, created.id, second.eventId, { message: "Acara dipindahkan." })).resolves.toMatchObject({ mode: "cancelled", changed: true });
+      await expect(testPrisma!.event.findUnique({ where: { id: second.eventId } })).resolves.toMatchObject({ cancelledAt: expect.any(Date), cancellationMessage: "Acara dipindahkan." });
+      await expect(removeEvent(testPrisma!, owner.id, created.id, second.eventId)).resolves.toMatchObject({ mode: "archived" });
+      await expect(testPrisma!.event.findUnique({ where: { id: second.eventId } })).resolves.toMatchObject({ archivedAt: expect.any(Date), cancellationMessage: "Acara dipindahkan." });
     } finally {
       await testPrisma!.auditEvent.deleteMany({ where: { invitationId: created.id } });
       await testPrisma!.invitation.delete({ where: { id: created.id } });
