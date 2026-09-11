@@ -144,7 +144,19 @@ Use the smallest test layer that proves the behavior:
 -   operational data purge;
 -   financial record retention separation.
 
-## 3. Golden E2E
+## 3. Local Verification Environment
+
+Run local verification serially, one check at a time, to keep memory use predictable. Always cap production builds at a 1 GB Node heap:
+
+```sh
+NODE_OPTIONS=--max-old-space-size=1024 pnpm build
+```
+
+Integration tests that require PostgreSQL should run against a temporary disposable Docker container. Apply all checked-in migrations to the container before testing and remove the container afterward; do not leave test data in a persistent development database.
+
+When a ticket requires browser verification, use `agent-browser` for dev-server navigation, screenshots, accessibility/interaction inspection, and console/error checks. Close the browser session after verification. If the repository has no automated E2E suite for the journey, report the manual browser coverage and the missing automation separately.
+
+## 4. Golden E2E
 
 1.  User signs up and verifies email.
 2.  Creates invitation; trial clock visible.
@@ -162,7 +174,7 @@ Use the smallest test layer that proves the behavior:
 14. Owner sees summary.
 15. Owner exports data.
 
-## 4. Release Gate
+## 5. Release Gate
 
 P0 release requires:
 

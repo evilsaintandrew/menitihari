@@ -81,6 +81,63 @@ function renderEditor() {
 }
 
 describe("WF-06 invitation editor", () => {
+  it("edits optional couple details, social links, copy, and Love Story milestones", async () => {
+    vi.useFakeTimers();
+    saveInvitationContentAction.mockResolvedValue({ ok: true, version: 2, message: "Perubahan tersimpan." });
+    renderEditor();
+
+    fireEvent.change(screen.getByLabelText("Nama lengkap pasangan 1"), { target: { value: "Alya Putri" } });
+    fireEvent.change(screen.getByLabelText("Nama ayah pasangan 1"), { target: { value: "Arif" } });
+    fireEvent.change(screen.getByLabelText("Instagram"), { target: { value: "https://instagram.com/alyabima" } });
+    fireEvent.change(screen.getByLabelText("Quote, ayat, atau doa"), { target: { value: "Semoga penuh kasih." } });
+    fireEvent.change(screen.getByLabelText("Hashtag"), { target: { value: "#AlyaBima" } });
+    fireEvent.click(screen.getByLabelText("Aktifkan Love Story"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Tambah momen" }));
+    fireEvent.change(screen.getByLabelText("Tanggal momen 1"), { target: { value: "2019" } });
+    fireEvent.change(screen.getByLabelText("Judul momen 1"), { target: { value: "Pertama bertemu" } });
+    fireEvent.change(screen.getByLabelText("Cerita momen 1"), { target: { value: "Awal cerita kami." } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+
+    expect(saveInvitationContentAction).toHaveBeenCalledWith(
+      "editor-ui-1",
+      1,
+      expect.objectContaining({
+        optional: expect.objectContaining({
+          fullNames: { person1: "Alya Putri" },
+          parentFields: { person1: { father: "Arif" } },
+          socialLinks: { instagram: "https://instagram.com/alyabima" },
+          quoteOrPrayer: "Semoga penuh kasih.",
+          hashtag: "#AlyaBima",
+          loveStory: { milestones: [{ date: "2019", title: "Pertama bertemu", description: "Awal cerita kami." }] },
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("limits the Love Story editor to five milestones", () => {
+    const fiveMilestones = Array.from({ length: 5 }, (_, index) => ({ title: `Momen ${index + 1}` }));
+    render(
+      <InvitationEditor
+        invitationId="editor-ui-1"
+        invitationTitle="Alya & Bima"
+        initialContent={{ ...content, optional: { loveStory: { milestones: fiveMilestones } }, sectionOrder: ["couple", "events", "love_story"] }}
+        initialVersion={1}
+        preview={{ ...preview, content: { ...content, optional: { loveStory: { milestones: fiveMilestones } }, sectionOrder: ["couple", "events", "love_story"] } }}
+        theme={theme}
+        publicationState={PublicationState.DRAFT}
+        commercialState={CommercialState.TRIAL}
+        canEdit
+      />,
+    );
+
+    expect(screen.getByText("5/5")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "+ Tambah momen" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("debounces edits and exposes saving then saved state", async () => {
     vi.useFakeTimers();
     saveInvitationContentAction.mockResolvedValue({ ok: true, version: 2, message: "Perubahan tersimpan." });

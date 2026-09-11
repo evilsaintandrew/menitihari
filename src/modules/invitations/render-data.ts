@@ -108,6 +108,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function languageValue(value: unknown, language: string): unknown {
   if (!isRecord(value)) return value;
+  if (!("id" in value) && !("en" in value)) return value;
   return value[language] ?? value.id ?? value.en;
 }
 

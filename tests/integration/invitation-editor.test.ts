@@ -28,7 +28,16 @@ describe("invitation editor PostgreSQL integration", () => {
     const content: InvitationContent = {
       language: "id" as const,
       core: { coupleDisplayName1: "Alya Putri", coupleDisplayName2: "Bima Pratama" },
-      optional: { opening: "Selamat datang", closing: "Sampai jumpa" },
+      optional: {
+        fullNames: { person1: "Alya Putri", person2: "Bima Pratama" },
+        parentFields: { person1: { father: "Arif", mother: "Sari" } },
+        opening: "Selamat datang",
+        closing: "Sampai jumpa",
+        quoteOrPrayer: "Semoga penuh kasih",
+        hashtag: "#AlyaBima",
+        socialLinks: { instagram: "https://instagram.com/alyabima" },
+        loveStory: { milestones: [{ date: "2019", title: "Pertama bertemu", description: "Awal cerita kami" }] },
+      },
       sectionOrder: ["couple", "events", "opening_closing", "rsvp"],
     };
     const themeConfig = { accent: "blush" as const, fontPairing: "script-sans" as const, coverStyle: "framed" as const, sectionStyle: "soft" as const };
@@ -46,8 +55,16 @@ describe("invitation editor PostgreSQL integration", () => {
         version: 2,
         coupleDisplayName1: "Alya Putri",
         coupleDisplayName2: "Bima Pratama",
+        fullNames: { person1: "Alya Putri", person2: "Bima Pratama" },
+        parentFields: { person1: { father: "Arif", mother: "Sari" } },
         themeConfig,
-        content: { opening: "Selamat datang", closing: "Sampai jumpa" },
+        content: {
+          opening: "Selamat datang",
+          closing: "Sampai jumpa",
+          quoteOrPrayer: "Semoga penuh kasih",
+          hashtag: "#AlyaBima",
+          sections: { socialLinks: { instagram: "https://instagram.com/alyabima" }, loveStory: { milestones: [{ date: "2019", title: "Pertama bertemu", description: "Awal cerita kami" }] } },
+        },
       });
       expect(cache.invalidateInvitation).toHaveBeenCalledTimes(1);
 

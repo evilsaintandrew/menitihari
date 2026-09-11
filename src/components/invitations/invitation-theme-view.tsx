@@ -23,6 +23,7 @@ const labels = {
     parents: "Putra-putri dari",
     story: "Kisah Kami",
     quote: "Doa dan harapan",
+    social: "Temukan kami",
   },
   en: {
     invitation: "Wedding Invitation",
@@ -31,8 +32,17 @@ const labels = {
     parents: "Children of",
     story: "Our Story",
     quote: "A prayer and hope",
+    social: "Find us online",
   },
 } as const;
+
+const socialLinkLabels = [
+  { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "youtube", label: "YouTube" },
+  { id: "website", label: "Website" },
+] as const;
 
 const fontClasses = {
   "serif-sans": "invitation-font-serif-sans",
@@ -99,10 +109,22 @@ function renderOptionalSections(
   language: "id" | "en",
 ): ReactNode[] {
   const copy = labels[language];
+  const fullNames = content.optional.fullNames
+    ? [content.optional.fullNames.person1, content.optional.fullNames.person2].filter(Boolean)
+    : [];
+  const parentNames = content.optional.parentFields
+    ? [content.optional.parentFields.person1, content.optional.parentFields.person2]
+      .map((parent) => [parent?.father, parent?.mother].filter(Boolean).join(" & "))
+      .filter(Boolean)
+    : [];
+  const socialLinks = content.optional.socialLinks
+    ? socialLinkLabels.filter(({ id }) => content.optional.socialLinks?.[id])
+    : [];
   const sections: Record<InvitationSectionId, ReactNode> = {
-    couple: (content.optional.fullNames || content.optional.parentFields) && <OptionalSection key="couple">
-      {content.optional.fullNames && <><p>{content.optional.fullNames.person1}</p><p>{content.optional.fullNames.person2}</p></>}
-      {content.optional.parentFields && <><p className="invitation-renderer-kicker">{copy.parents}</p><p>{[content.optional.parentFields.person1?.father, content.optional.parentFields.person1?.mother].filter(Boolean).join(" & ")}</p><p>{[content.optional.parentFields.person2?.father, content.optional.parentFields.person2?.mother].filter(Boolean).join(" & ")}</p></>}
+    couple: (fullNames.length > 0 || parentNames.length > 0 || socialLinks.length > 0) && <OptionalSection key="couple">
+      {fullNames.map((name) => <p key={name}>{name}</p>)}
+      {parentNames.length > 0 && <><p className="invitation-renderer-kicker">{copy.parents}</p>{parentNames.map((parent) => <p key={parent}>{parent}</p>)}</>}
+      {socialLinks.length > 0 && <><p className="invitation-renderer-kicker">{copy.social}</p><ul className="invitation-renderer-social-links">{socialLinks.map(({ id, label }) => <li key={id}><a href={content.optional.socialLinks?.[id]} target="_blank" rel="noreferrer">{label}</a></li>)}</ul></>}
     </OptionalSection>,
     events: events.length > 0 && <OptionalSection className="invitation-renderer-events" key="events"><p className="invitation-renderer-kicker">{copy.events}</p><ul>{events.map((event) => <EventCard event={event} language={language} timezone={timezone} key={event.id} />)}</ul></OptionalSection>,
     opening_closing: (content.optional.opening || content.optional.closing || content.optional.quoteOrPrayer) && <OptionalSection key="opening_closing">

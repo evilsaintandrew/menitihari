@@ -101,4 +101,21 @@ describe("invitation render data", () => {
     });
     expect(data.content.optional.hashtag).toBe("#AlyaBima");
   });
+
+  it("preserves structured optional sections stored in JSON columns", () => {
+    const data = buildInvitationRenderData({
+      ...baseRecord,
+      content: {
+        ...baseRecord.content,
+        sections: {
+          socialLinks: { instagram: "https://instagram.com/alyabima" },
+          loveStory: { milestones: [{ date: "2019", title: "Pertama bertemu" }] },
+        },
+        sectionOrder: ["couple", "events", "love_story"],
+      },
+    }, "public");
+
+    expect(data.content.optional.socialLinks).toEqual({ instagram: "https://instagram.com/alyabima" });
+    expect(data.content.optional.loveStory).toEqual({ milestones: [{ date: "2019", title: "Pertama bertemu" }] });
+  });
 });
