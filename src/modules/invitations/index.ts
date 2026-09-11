@@ -24,6 +24,7 @@ export * from "./dashboard";
 export * from "./content";
 export * from "./editor";
 export * from "./render-data";
+export * from "./share-metadata";
 export { publicInvitationCacheTag } from "./public-cache";
 export { ownerMembershipWhere } from "./authorization";
 

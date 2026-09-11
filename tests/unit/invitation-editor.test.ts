@@ -47,6 +47,9 @@ function transactionFor(current = invitation()) {
     invitationContent: {
       upsert: vi.fn().mockResolvedValue({ invitationId }),
     },
+    mediaAsset: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     auditEvent: {
       create: vi.fn().mockResolvedValue({ id: "audit-editor-1" }),
     },
@@ -152,5 +155,44 @@ describe("invitation content autosave", () => {
     )).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
 
     expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects a share cover that is not a ready image owned by the invitation", async () => {
+    const transaction = transactionFor();
+
+    await expect(saveInvitationContent(
+      databaseFor(transaction),
+      userId,
+      invitationId,
+      { expectedVersion: 1, content: { ...content, shareCoverMediaAssetId: "asset-other-invitation" } },
+      { now: () => now },
+    )).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+
+    expect(transaction.mediaAsset.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: "asset-other-invitation",
+        invitationId,
+        state: "READY",
+        type: "IMAGE",
+      }),
+    }));
+    expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("allows a ready invitation-owned image as the share cover", async () => {
+    const transaction = transactionFor();
+    transaction.mediaAsset.findFirst.mockResolvedValue({ id: "asset-ready" });
+
+    await expect(saveInvitationContent(
+      databaseFor(transaction),
+      userId,
+      invitationId,
+      { expectedVersion: 1, content: { ...content, shareCoverMediaAssetId: "asset-ready" } },
+      { now: () => now },
+    )).resolves.toMatchObject({ changed: true, version: 2 });
+
+    expect(transaction.invitationContent.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ shareCoverMediaAssetId: "asset-ready" }),
+    }));
   });
 });
