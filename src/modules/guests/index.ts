@@ -123,8 +123,68 @@ export interface GuestManagementItem {
   readonly notes: string | null;
   readonly group: GuestGroupItem | null;
   readonly assignedEvents: readonly GuestEventSummary[];
+  readonly distributionStatus: GuestDistributionStatus;
+  readonly viewedAt: string | null;
   readonly duplicateWarnings?: readonly GuestDuplicateWarning[];
   readonly createdAt: string;
+}
+
+export const guestDistributionStatusSchema = z.enum(["NOT_SENT", "MARKED_SENT", "WHATSAPP_OPENED"]);
+export type GuestDistributionStatus = z.infer<typeof guestDistributionStatusSchema>;
+const guestBulkDistributionStatusSchema = z.enum(["NOT_SENT", "MARKED_SENT"]);
+
+const guestBulkIdsSchema = z
+  .array(z.string().trim().min(1).max(128))
+  .min(1, "Pilih setidaknya satu tamu.")
+  .max(500, "Pilih maksimal 500 tamu sekaligus.")
+  .superRefine((guestIds, context) => {
+    if (new Set(guestIds).size !== guestIds.length) {
+      context.addIssue({ code: "custom", message: "Tamu yang dipilih tidak boleh berulang." });
+    }
+  });
+
+export const guestBulkActionInputSchema = z
+  .object({
+    operation: z.enum(["GROUP", "EVENT", "DISTRIBUTION"]),
+    guestIds: guestBulkIdsSchema,
+    groupId: z.string().trim().max(128).nullable().optional(),
+    eventId: z.string().trim().min(1).max(128).optional(),
+    eventAction: z.enum(["ASSIGN", "UNASSIGN"]).optional(),
+    maxPartySize: z.number().int().min(1, "Maksimal orang minimal 1.").optional(),
+    distributionStatus: guestBulkDistributionStatusSchema.optional(),
+    confirmHistoricalRemoval: z.boolean().default(false),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.operation === "GROUP" && input.groupId === undefined) {
+      context.addIssue({ code: "custom", path: ["groupId"], message: "Pilih grup." });
+    }
+    if (input.operation === "EVENT") {
+      if (!input.eventId) context.addIssue({ code: "custom", path: ["eventId"], message: "Pilih acara." });
+      if (!input.eventAction) context.addIssue({ code: "custom", path: ["eventAction"], message: "Pilih tindakan acara." });
+      if (input.eventAction === "ASSIGN" && input.maxPartySize === undefined) {
+        context.addIssue({ code: "custom", path: ["maxPartySize"], message: "Masukkan maksimal orang." });
+      }
+    }
+    if (input.operation === "DISTRIBUTION" && !input.distributionStatus) {
+      context.addIssue({ code: "custom", path: ["distributionStatus"], message: "Pilih status distribusi." });
+    }
+  });
+
+export type GuestBulkActionInput = z.input<typeof guestBulkActionInputSchema>;
+
+export interface GuestBulkWarning {
+  readonly code: "HISTORICAL_EVENT_UNASSIGN";
+  readonly guestCount: number;
+  readonly assignmentCount: number;
+}
+
+export interface GuestBulkMutationResult {
+  readonly invitationVersion: number;
+  readonly changed: boolean;
+  readonly updatedGuestCount: number;
+  readonly operation: GuestBulkActionInput["operation"];
+  readonly warning?: GuestBulkWarning;
 }
 
 export interface GuestManagementData {
@@ -197,6 +257,8 @@ const managementSelect = {
       displayPhone: true,
       normalizedPhone: true,
       notes: true,
+      distributionStatus: true,
+      lastViewedAt: true,
       createdAt: true,
       group: { select: { id: true, name: true } },
       eventAssignments: {
@@ -269,15 +331,22 @@ async function assertEditableAndLock(
   invitation: { id: string; version: number; commercialState: CommercialState; trialEndsAt: Date; activeUntil: Date | null },
   now: Date,
 ): Promise<number> {
-  if (!getInvitationLifecycleCapabilities(invitation.commercialState, invitation.trialEndsAt, now, invitation.activeUntil).canEdit) {
-    throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
-  }
+  assertEditable(invitation, now);
   const locked = await transaction.invitation.updateMany({
     where: { id: invitation.id, version: invitation.version, ...ownerMembershipWhere(userId) },
     data: { version: { increment: 1 } },
   });
   if (locked.count !== 1) throw new DomainError(ERROR_CODES.STALE_VERSION, { retryable: true });
   return invitation.version + 1;
+}
+
+function assertEditable(
+  invitation: { commercialState: CommercialState; trialEndsAt: Date; activeUntil: Date | null },
+  now: Date,
+): void {
+  if (!getInvitationLifecycleCapabilities(invitation.commercialState, invitation.trialEndsAt, now, invitation.activeUntil).canEdit) {
+    throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
+  }
 }
 
 async function resolveGroup(
@@ -324,6 +393,8 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
     displayPhone: guest.displayPhone,
     normalizedPhone: guest.normalizedPhone,
     notes: guest.notes,
+    distributionStatus: guest.distributionStatus,
+    viewedAt: guest.lastViewedAt,
     group: guest.group,
     assignedEvents: guest.eventAssignments.map((assignment) => ({
       id: assignment.event.id,
@@ -357,6 +428,12 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
       notes: guest.notes,
       group: guest.group,
       assignedEvents: guest.assignedEvents,
+      distributionStatus: guest.distributionStatus === "MARKED_SENT"
+        ? "MARKED_SENT"
+        : guest.distributionStatus === "WHATSAPP_OPENED"
+          ? "WHATSAPP_OPENED"
+          : "NOT_SENT",
+      viewedAt: guest.viewedAt?.toISOString() ?? null,
       duplicateWarnings: guests
         .filter((candidate) => candidate.id !== guest.id)
         .map((candidate) => ({
@@ -538,6 +615,181 @@ async function syncGuestEventAssignments(
       });
     }
   }
+}
+
+type BulkGuestEventRecord = {
+  readonly id: string;
+  readonly state: GuestEventState;
+  readonly maxPartySize: number;
+  readonly rsvp: { readonly status: string; readonly attendanceCount: number | null } | null;
+  readonly attendance: { readonly actualCount: number | null } | null;
+};
+
+function eventHistoryCount(assignments: readonly BulkGuestEventRecord[]): number {
+  return assignments.filter((assignment) => assignment.rsvp !== null || assignment.attendance !== null).length;
+}
+
+function historyCountForAssignment(assignment: BulkGuestEventRecord): number {
+  const rsvpCount = assignment.rsvp?.status === "ATTENDING" ? assignment.rsvp.attendanceCount ?? 0 : 0;
+  return Math.max(rsvpCount, assignment.attendance?.actualCount ?? 0);
+}
+
+/**
+ * Apply one explicit operation to a bounded set of active guests.
+ *
+ * The read/warning path intentionally returns before the invitation version
+ * lock. A second submit must carry explicit confirmation before historical
+ * event assignments are removed.
+ */
+export async function bulkUpdateGuests(
+  database: GuestDatabase,
+  userId: string,
+  invitationId: string,
+  input: GuestBulkActionInput,
+  options: GuestServiceOptions = {},
+): Promise<GuestBulkMutationResult> {
+  const parsed = guestBulkActionInputSchema.parse(input);
+  const now = options.now?.() ?? new Date();
+  if (!Number.isFinite(now.getTime())) throw new Error("Guest clock is invalid");
+
+  return database.$transaction(async (transaction) => {
+    const invitation = await transaction.invitation.findFirst({
+      where: { id: invitationId, ...ownerMembershipWhere(userId) },
+      select: { id: true, version: true, commercialState: true, trialEndsAt: true, activeUntil: true },
+    });
+    if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
+    assertEditable(invitation, now);
+
+    const selectedGuests = await transaction.guest.findMany({
+      where: { invitationId, archivedAt: null, id: { in: parsed.guestIds } },
+      select: { id: true },
+    });
+    if (selectedGuests.length !== parsed.guestIds.length) throw new DomainError(ERROR_CODES.NOT_FOUND);
+
+    if (parsed.operation === "GROUP") {
+      if (parsed.groupId) {
+        const group = await transaction.guestGroup.findFirst({ where: { id: parsed.groupId, invitationId }, select: { id: true } });
+        if (!group) throw new DomainError(ERROR_CODES.NOT_FOUND);
+      }
+    }
+
+    let event: { id: string } | null = null;
+    let eventAssignments: BulkGuestEventRecord[] = [];
+    if (parsed.operation === "EVENT") {
+      event = await transaction.event.findFirst({ where: { id: parsed.eventId, invitationId, archivedAt: null }, select: { id: true } });
+      if (!event) throw new DomainError(ERROR_CODES.NOT_FOUND);
+      eventAssignments = await transaction.guestEvent.findMany({
+        where: { guestId: { in: parsed.guestIds }, eventId: event.id },
+        select: {
+          id: true,
+          state: true,
+          maxPartySize: true,
+          rsvp: { select: { status: true, attendanceCount: true } },
+          attendance: { select: { actualCount: true } },
+        },
+      }) as BulkGuestEventRecord[];
+
+      if (parsed.eventAction === "UNASSIGN") {
+        const activeHistoricalAssignments = eventAssignments.filter(
+          (assignment) => assignment.state === GuestEventState.ACTIVE && historyCountForAssignment(assignment) > 0,
+        );
+        if (activeHistoricalAssignments.length > 0 && !parsed.confirmHistoricalRemoval) {
+          return {
+            invitationVersion: invitation.version,
+            changed: false,
+            updatedGuestCount: 0,
+            operation: parsed.operation,
+            warning: {
+              code: "HISTORICAL_EVENT_UNASSIGN",
+              guestCount: activeHistoricalAssignments.length,
+              assignmentCount: activeHistoricalAssignments.length,
+            },
+          } satisfies GuestBulkMutationResult;
+        }
+      }
+
+      if (parsed.eventAction === "ASSIGN") {
+        for (const assignment of eventAssignments) {
+          if (assignment.state === GuestEventState.ACTIVE && historyCountForAssignment(assignment) > (parsed.maxPartySize ?? 0)) {
+            throw new DomainError(ERROR_CODES.VALIDATION_FAILED, {
+              details: { maxPartySize: ["Maksimal orang tidak boleh lebih kecil dari jumlah kehadiran yang sudah tercatat."] },
+            });
+          }
+        }
+      }
+    }
+
+    const invitationVersion = await assertEditableAndLock(transaction, userId, invitation, now);
+
+    if (parsed.operation === "GROUP") {
+      await transaction.guest.updateMany({
+        where: { invitationId, archivedAt: null, id: { in: parsed.guestIds } },
+        data: { groupId: parsed.groupId ?? null },
+      });
+    } else if (parsed.operation === "DISTRIBUTION") {
+      await transaction.guest.updateMany({
+        where: { invitationId, archivedAt: null, id: { in: parsed.guestIds } },
+        data: { distributionStatus: parsed.distributionStatus === "MARKED_SENT" ? "MARKED_SENT" : null },
+      });
+    } else if (parsed.eventAction === "UNASSIGN") {
+      await transaction.guestEvent.updateMany({
+        where: { guestId: { in: parsed.guestIds }, eventId: event!.id, state: GuestEventState.ACTIVE },
+        data: { state: GuestEventState.REMOVED, removedAt: now },
+      });
+    } else {
+      const maxPartySize = parsed.maxPartySize!;
+      const currentCapacity = await transaction.guestEvent.aggregate({
+        where: {
+          state: GuestEventState.ACTIVE,
+          guest: { invitationId, archivedAt: null },
+        },
+        _sum: { maxPartySize: true },
+      });
+      const selectedActiveCapacity = eventAssignments
+        .filter((assignment) => assignment.state === GuestEventState.ACTIVE)
+        .reduce((total, assignment) => total + assignment.maxPartySize, 0);
+      if ((currentCapacity._sum.maxPartySize ?? 0) - selectedActiveCapacity + maxPartySize * parsed.guestIds.length > INVITED_PEOPLE_LIMIT) {
+        throw new DomainError(ERROR_CODES.CAPACITY_EXCEEDED);
+      }
+
+      const existingAssignments = await transaction.guestEvent.findMany({
+        where: { guestId: { in: parsed.guestIds }, eventId: event!.id },
+        select: { id: true, guestId: true, state: true, maxPartySize: true },
+      });
+      for (const assignment of existingAssignments) {
+        await transaction.guestEvent.update({
+          where: { id: assignment.id },
+          data: { state: GuestEventState.ACTIVE, maxPartySize, removedAt: null },
+        });
+      }
+      for (const guestId of parsed.guestIds) {
+        if (!existingAssignments.some((assignment) => assignment.guestId === guestId)) {
+          await transaction.guestEvent.create({ data: { guestId, eventId: event!.id, maxPartySize } });
+        }
+      }
+    }
+
+    await writeAuditEvent(transaction, {
+      actorId: userId,
+      invitationId,
+      resourceType: "guest",
+      resourceId: invitationId,
+      action: "guests.bulk_updated",
+      metadata: {
+        operation: parsed.operation,
+        guest_count: parsed.guestIds.length,
+        ...(parsed.operation === "EVENT" ? { event_action: parsed.eventAction!, event_history_count: eventHistoryCount(eventAssignments) } : {}),
+        ...(parsed.operation === "DISTRIBUTION" ? { distribution_status: parsed.distributionStatus! } : {}),
+      },
+    });
+
+    return {
+      invitationVersion,
+      changed: true,
+      updatedGuestCount: parsed.guestIds.length,
+      operation: parsed.operation,
+    } satisfies GuestBulkMutationResult;
+  });
 }
 
 export async function archiveGuest(

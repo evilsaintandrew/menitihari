@@ -491,6 +491,7 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .guests-event-capacity { justify-content: space-between; width: 100%; }
   .guests-toolbar { grid-template-columns: 1fr; }
   .guests-toolbar .ui-button { width: 100%; }
+  .guests-select-all { justify-content: center; }
 }
 .invitation-renderer { background: var(--invitation-background); border: 1px solid color-mix(in srgb, var(--invitation-accent) 35%, transparent); border-radius: 28px; box-shadow: 0 24px 80px rgb(33 22 76 / 12%); color: var(--invitation-foreground); margin: 0 auto; overflow: hidden; }
 .invitation-renderer-cover { align-items: center; display: grid; gap: 12px; min-height: 390px; padding: clamp(48px, 10vw, 92px) 28px; place-content: center; position: relative; text-align: center; }
@@ -621,6 +622,17 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .guest-import-result strong { color: var(--color-success); }
 .guest-import-result .guest-import-result-failed { color: var(--color-warning); }
 .guests-toolbar-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.guests-select-all, .guests-selection-control { align-items: center; color: var(--color-ink-muted); display: inline-flex; font-size: 12px; font-weight: 800; gap: 7px; }
+.guests-select-all input, .guests-selection-control input { accent-color: var(--color-brand); height: 17px; width: 17px; }
+.guests-selection-control { margin-bottom: 7px; }
+.guests-bulk-card { grid-column: 1 / -1; margin: 0 auto 18px; max-width: 1080px; width: 100%; }
+.guests-bulk-heading { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; }
+.guests-bulk-heading h2 { font-size: 22px; margin-top: 4px; }
+.guests-bulk-form { border-top: 1px solid var(--color-border); display: grid; gap: 14px; grid-template-columns: minmax(180px, .8fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto; margin-top: 4px; padding: 18px; }
+.guests-bulk-form > .ui-alert { grid-column: 1 / -1; }
+.guests-bulk-form > .ui-button { align-self: end; }
+.guests-bulk-event-fields { display: grid; gap: 12px; grid-column: span 2; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.guests-card-heading > div:first-child { min-width: 0; }
 
 @media (max-width: 640px) {
   .guest-import-header { align-items: flex-start; flex-direction: column; }
@@ -631,6 +643,9 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .guest-import-confirm-footer .ui-button { width: 100%; }
   .guests-toolbar-actions { width: 100%; }
   .guests-toolbar-actions > * { flex: 1; }
+  .guests-bulk-form { grid-template-columns: 1fr; }
+  .guests-bulk-event-fields { grid-column: auto; grid-template-columns: 1fr; }
+  .guests-bulk-form > .ui-button { width: 100%; }
 }
 
 /* Showcase composition: this is a representative smoke surface, not a domain screen. */

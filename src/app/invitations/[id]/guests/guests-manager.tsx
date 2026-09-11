@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -26,6 +27,7 @@ import type { GuestManagementData, GuestManagementItem } from "@/modules/guests"
 
 import {
   archiveGuestAction,
+  bulkUpdateGuestsAction,
   getGuestMergePreviewAction,
   mergeGuestAction,
   saveGuestAction,
@@ -39,6 +41,14 @@ const DEFAULT_MAX_PARTY_SIZE = "1";
 
 function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
   return state === "TRIAL" ? "Trial" : state === "PAID_ACTIVE" ? "Aktif" : state === "GRACE" ? "Grace" : "Tidak aktif";
+}
+
+function distributionLabel(status: GuestManagementItem["distributionStatus"]): string {
+  return status === "MARKED_SENT" ? "Ditandai Terkirim" : status === "WHATSAPP_OPENED" ? "WhatsApp Dibuka" : "Belum Dikirim";
+}
+
+function hasHistoricalAssignment(guest: GuestManagementItem, eventId: string): boolean {
+  return guest.assignedEvents.some((event) => event.id === eventId && (event.rsvpStatus !== null || event.attendanceCount !== null));
 }
 
 function GuestActionMessage({ state }: { readonly state: GuestActionState }) {
@@ -241,6 +251,123 @@ function GuestForm({
   );
 }
 
+function BulkActionBar({
+  data,
+  selectedGuestIds,
+  onComplete,
+}: {
+  readonly data: GuestManagementData;
+  readonly selectedGuestIds: readonly string[];
+  readonly onComplete: () => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(bulkUpdateGuestsAction, initialActionState);
+  const [operation, setOperation] = useState<"GROUP" | "EVENT" | "DISTRIBUTION">("GROUP");
+  const [eventAction, setEventAction] = useState<"ASSIGN" | "UNASSIGN">("ASSIGN");
+  const [eventId, setEventId] = useState(data.events[0]?.id ?? "");
+  const [maxPartySize, setMaxPartySize] = useState("1");
+  const selectedGuests = data.guests.filter((guest) => selectedGuestIds.includes(guest.id));
+  const historicalGuestCount = operation === "EVENT" && eventAction === "UNASSIGN"
+    ? selectedGuests.filter((guest) => hasHistoricalAssignment(guest, eventId)).length
+    : 0;
+
+  useEffect(() => {
+    if (!state.ok) return;
+    onComplete();
+    router.refresh();
+  }, [onComplete, router, state.ok]);
+
+  useEffect(() => {
+    const confirmation = document.getElementById("bulk-confirm-historical-removal") as HTMLInputElement | null;
+    if (state.requiresConfirmation && confirmation) confirmation.value = "true";
+  }, [state.requiresConfirmation]);
+
+  function submit(event: FormEvent<HTMLFormElement>): void {
+    if (operation !== "EVENT" || eventAction !== "UNASSIGN" || historicalGuestCount === 0) return;
+    const confirmation = event.currentTarget.elements.namedItem("confirmHistoricalRemoval");
+    if (!(confirmation instanceof HTMLInputElement) || confirmation.value === "true") return;
+    if (!window.confirm(`${historicalGuestCount} tamu memiliki riwayat RSVP atau check-in pada acara ini. Penugasan akan dihapus, tetapi riwayat tetap disimpan. Lanjutkan?`)) {
+      event.preventDefault();
+      return;
+    }
+    confirmation.value = "true";
+    event.preventDefault();
+    event.currentTarget.requestSubmit();
+  }
+
+  return (
+    <Card className="guests-bulk-card">
+      <CardHeader>
+        <div className="guests-bulk-heading">
+          <div>
+            <p className="ui-overline">Aksi massal</p>
+            <h2>{selectedGuestIds.length} tamu dipilih</h2>
+          </div>
+          <Button onClick={onComplete} size="sm" variant="ghost">Batalkan pilihan</Button>
+        </div>
+        <CardDescription>Pilih satu tindakan untuk semua tamu. Setiap perubahan tetap divalidasi oleh server.</CardDescription>
+      </CardHeader>
+      <form action={action} className="guests-bulk-form" onSubmit={submit}>
+        <input name="invitationId" type="hidden" value={data.invitationId} />
+        <input id="bulk-confirm-historical-removal" key={`${operation}-${eventId}-${eventAction}-${selectedGuestIds.join(",")}`} name="confirmHistoricalRemoval" type="hidden" defaultValue="false" />
+        {selectedGuestIds.map((guestId) => <input key={guestId} name="guestIds" type="hidden" value={guestId} />)}
+        <Field htmlFor="bulk-operation">
+          <FieldLabel>Tindakan</FieldLabel>
+          <Select disabled={!data.canEdit || pending} id="bulk-operation" name="operation" onChange={(change) => setOperation(change.target.value as typeof operation)} value={operation}>
+            <option value="GROUP">Ubah grup</option>
+            <option value="EVENT">Acara</option>
+            <option value="DISTRIBUTION">Status distribusi</option>
+          </Select>
+        </Field>
+        {operation === "GROUP" && (
+          <Field htmlFor="bulk-group-id">
+            <FieldLabel>Grup baru</FieldLabel>
+            <Select disabled={!data.canEdit || pending} id="bulk-group-id" name="groupId" defaultValue="">
+              <option value="">Tanpa grup</option>
+              {data.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </Select>
+          </Field>
+        )}
+        {operation === "EVENT" && (
+          <div className="guests-bulk-event-fields">
+            <Field htmlFor="bulk-event-action">
+              <FieldLabel>Tindakan acara</FieldLabel>
+              <Select disabled={!data.canEdit || pending} id="bulk-event-action" name="eventAction" onChange={(change) => setEventAction(change.target.value as typeof eventAction)} value={eventAction}>
+                <option value="ASSIGN">Tetapkan acara</option>
+                <option value="UNASSIGN">Hapus penugasan</option>
+              </Select>
+            </Field>
+            <Field htmlFor="bulk-event-id">
+              <FieldLabel>Acara</FieldLabel>
+              <Select disabled={!data.canEdit || pending || data.events.length === 0} id="bulk-event-id" name="eventId" onChange={(change) => setEventId(change.target.value)} value={eventId}>
+                {data.events.length === 0 ? <option value="">Belum ada acara</option> : data.events.map((eventOption) => <option key={eventOption.id} value={eventOption.id}>{eventOption.name}</option>)}
+              </Select>
+            </Field>
+            {eventAction === "ASSIGN" && (
+              <Field htmlFor="bulk-max-party-size">
+                <FieldLabel>Maks. orang</FieldLabel>
+                <Input disabled={!data.canEdit || pending} id="bulk-max-party-size" min={1} name="maxPartySize" onChange={(change) => setMaxPartySize(change.target.value)} type="number" value={maxPartySize} />
+              </Field>
+            )}
+          </div>
+        )}
+        {operation === "DISTRIBUTION" && (
+          <Field htmlFor="bulk-distribution-status">
+            <FieldLabel>Status baru</FieldLabel>
+            <Select disabled={!data.canEdit || pending} id="bulk-distribution-status" name="distributionStatus" defaultValue="MARKED_SENT">
+              <option value="MARKED_SENT">Ditandai Terkirim</option>
+              <option value="NOT_SENT">Belum Dikirim</option>
+            </Select>
+          </Field>
+        )}
+        {state.requiresConfirmation && <Alert role="alert" tone="warning" title="Konfirmasi diperlukan">{state.message}</Alert>}
+        {!state.requiresConfirmation && <GuestActionMessage state={state} />}
+        <Button disabled={!data.canEdit || pending || data.events.length === 0 && operation === "EVENT"} type="submit">{pending ? "Memproses…" : "Terapkan ke tamu terpilih"}</Button>
+      </form>
+    </Card>
+  );
+}
+
 function ArchiveGuestAction({ invitationId, guest, canEdit }: { readonly invitationId: string; readonly guest: GuestManagementItem; readonly canEdit: boolean }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(archiveGuestAction, initialActionState);
@@ -255,7 +382,7 @@ function ArchiveGuestAction({ invitationId, guest, canEdit }: { readonly invitat
   );
 }
 
-function GuestCard({ invitationId, groups, events, guest, canEdit }: { readonly invitationId: string; readonly groups: GuestManagementData["groups"]; readonly events: GuestManagementData["events"]; readonly guest: GuestManagementItem; readonly canEdit: boolean }) {
+function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onToggle }: { readonly invitationId: string; readonly groups: GuestManagementData["groups"]; readonly events: GuestManagementData["events"]; readonly guest: GuestManagementItem; readonly canEdit: boolean; readonly selected: boolean; readonly onToggle: (guestId: string) => void }) {
   const [editing, setEditing] = useState(false);
   const rsvpSummary = guest.assignedEvents.length === 0
     ? "Belum ada acara"
@@ -266,6 +393,7 @@ function GuestCard({ invitationId, groups, events, guest, canEdit }: { readonly 
       <CardHeader>
         <div className="guests-card-heading">
           <div>
+            <label className="guests-selection-control"><input aria-label={`Pilih ${guest.displayName}`} checked={selected} onChange={() => onToggle(guest.id)} type="checkbox" /><span>Pilih tamu</span></label>
             <p className="ui-overline">{guest.group?.name ?? "Tanpa grup"}</p>
             <h2>{guest.displayName}</h2>
             <CardDescription>{guest.displayPhone ?? "Nomor WhatsApp belum diisi"}</CardDescription>
@@ -277,6 +405,7 @@ function GuestCard({ invitationId, groups, events, guest, canEdit }: { readonly 
         <dl className="guests-card-meta">
           <div><dt>Acara</dt><dd>{guest.assignedEvents.length > 0 ? guest.assignedEvents.map((event) => event.name).join(" + ") : "Belum ditetapkan"}</dd></div>
           <div><dt>RSVP</dt><dd>{rsvpSummary}</dd></div>
+          <div><dt>Distribusi</dt><dd>{distributionLabel(guest.distributionStatus)} · {guest.viewedAt ? "Dilihat" : "Belum Dilihat"}</dd></div>
         </dl>
         {guest.notes && <p className="guests-card-notes">Catatan: {guest.notes}</p>}
       </CardContent>
@@ -293,10 +422,18 @@ function GuestCard({ invitationId, groups, events, guest, canEdit }: { readonly 
 export function GuestsManager({ data }: { readonly data: GuestManagementData }) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(data.guests.length === 0);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const normalizedQuery = query.trim().toLocaleLowerCase("id-ID");
   const guests = data.guests.filter((guest) => {
     if (!normalizedQuery) return true;
     return [guest.displayName, guest.displayPhone ?? "", guest.group?.name ?? ""].some((value) => value.toLocaleLowerCase("id-ID").includes(normalizedQuery));
+  });
+  const visibleGuestIds = guests.map((guest) => guest.id);
+  const allVisibleSelected = visibleGuestIds.length > 0 && visibleGuestIds.every((guestId) => selectedIds.has(guestId));
+  const toggleGuest = (guestId: string) => setSelectedIds((current) => {
+    const next = new Set(current);
+    if (next.has(guestId)) next.delete(guestId); else next.add(guestId);
+    return next;
   });
 
   return (
@@ -332,15 +469,16 @@ export function GuestsManager({ data }: { readonly data: GuestManagementData }) 
       </section>
       <section aria-label="Kontrol tamu" className="guests-toolbar">
         <Input aria-label="Cari tamu" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor, atau grup…" type="search" value={query} />
-        <div className="guests-toolbar-actions"><TextLink className="ui-button ui-button-secondary" href={`/invitations/${data.invitationId}/guests/import`}>Import</TextLink><Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button></div>
+        <div className="guests-toolbar-actions"><label className="guests-select-all"><input aria-label="Pilih semua tamu yang tampil" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? new Set([...current].filter((guestId) => !visibleGuestIds.includes(guestId))) : new Set([...current, ...visibleGuestIds]))} type="checkbox" /><span>Pilih tampil</span></label><TextLink className="ui-button ui-button-secondary" href={`/invitations/${data.invitationId}/guests/import`}>Import</TextLink><Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button></div>
       </section>
+      {selectedIds.size > 0 && <BulkActionBar data={data} onComplete={() => setSelectedIds(new Set())} selectedGuestIds={[...selectedIds]} />}
       {adding && <Card className="guests-add-card"><CardHeader><p className="ui-overline">WF-11</p><h2>Tambah tamu</h2><CardDescription>Simpan satu penerima atau party dengan penugasan acara dan kapasitas yang jelas.</CardDescription></CardHeader><GuestForm canEdit={data.canEdit} events={data.events} groups={data.groups} guest={null} invitationId={data.invitationId} onSaved={() => setAdding(false)} /></Card>}
       {data.guests.length === 0 ? (
         <Card><EmptyState action={<Button onClick={() => setAdding(true)}>Tambah tamu</Button>} description="Tambahkan nama penerima untuk mulai menyiapkan daftar tamu undangan." title="Belum ada tamu" /></Card>
       ) : guests.length === 0 ? (
         <Card><EmptyState description="Coba kata kunci lain atau hapus pencarian." title="Tamu tidak ditemukan" /></Card>
       ) : (
-        <section aria-label="Daftar tamu" className="guests-list">{guests.map((guest) => <GuestCard canEdit={data.canEdit} events={data.events} groups={data.groups} guest={guest} invitationId={data.invitationId} key={guest.id} />)}</section>
+        <section aria-label="Daftar tamu" className="guests-list">{guests.map((guest) => <GuestCard canEdit={data.canEdit} events={data.events} groups={data.groups} guest={guest} invitationId={data.invitationId} key={guest.id} onToggle={toggleGuest} selected={selectedIds.has(guest.id)} />)}</section>
       )}
     </main>
   );

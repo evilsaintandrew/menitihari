@@ -88,6 +88,23 @@ Behavior: normalize name and phone, return matching active guests as a
 warning, and perform no automatic merge. Run the capacity check where
 party/event entitlement changes.
 
+### Bulk guest actions
+
+Auth: owner.\
+Input: a bounded, unique list of active guest ids and exactly one operation:
+set/clear an invitation-owned group, assign/unassign one active event with a
+party-size value for assignment, or set the manual distribution status to
+`NOT_SENT`/`MARKED_SENT`.\
+Behavior: re-check ownership, invitation lifecycle, guest membership, event
+membership, party-history limits, and invited-person capacity inside one
+transaction. Event unassignment with RSVP/check-in history first returns a
+safe `HISTORICAL_EVENT_UNASSIGN` warning without changing data; a repeat
+request must explicitly confirm removal. Confirmed removal changes only the
+assignment to `REMOVED`, preserving the historical RSVP/check-in records.
+Distribution status is owner-maintained and remains separate from
+`WHATSAPP_OPENED` and viewed state. Append minimal audit metadata without
+copying guest ids, names, phone numbers, or personalized links.
+
 ### Preview/merge duplicate guests
 
 Auth: owner.\
