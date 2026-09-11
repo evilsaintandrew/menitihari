@@ -322,6 +322,20 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-editor-section-heading .ui-badge { font-size: 11px; padding: 5px 8px; }
 .invitation-editor-section-heading-spaced { margin-top: 10px; }
 .invitation-editor-control-description { color: var(--color-ink-muted); font-size: 13px; margin-top: 4px; }
+.invitation-editor-optional-details { border-top: 1px solid var(--color-border); display: grid; gap: 16px; margin-top: 2px; padding-top: 20px; }
+.invitation-editor-subsection-heading { display: grid; gap: 4px; }
+.invitation-editor-subsection-heading h4 { color: var(--color-ink-strong); font-size: 15px; }
+.invitation-editor-subsection-heading h4 span { color: var(--color-ink-muted); font-size: 12px; font-weight: 600; }
+.invitation-editor-subsection-heading p, .invitation-editor-empty-hint { color: var(--color-ink-muted); font-size: 13px; line-height: 1.45; }
+.invitation-editor-subsection-heading-spaced { border-top: 1px solid var(--color-border); padding-top: 16px; }
+.invitation-editor-person-grid, .invitation-editor-social-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.invitation-editor-parent-group, .invitation-editor-milestone { border: 1px solid var(--color-border); border-radius: 16px; display: grid; gap: 14px; margin: 0; min-width: 0; padding: 15px; }
+.invitation-editor-parent-group legend, .invitation-editor-milestone legend { color: var(--color-ink-strong); font-size: 13px; font-weight: 800; padding: 0 5px; }
+.invitation-editor-love-story { border-top: 1px solid var(--color-border); display: grid; gap: 16px; margin-top: 2px; padding-top: 20px; }
+.invitation-editor-milestone-list { display: grid; gap: 12px; }
+.invitation-editor-milestone { background: var(--color-surface-muted); }
+.invitation-editor-milestone .ui-button { justify-self: start; }
+.invitation-editor-milestone input[aria-invalid="true"] { border-color: var(--color-danger); }
 .invitation-editor-section-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .invitation-editor-section-row { align-items: center; background: var(--color-surface-muted); border: 1px solid transparent; border-radius: 14px; display: flex; gap: 8px; justify-content: space-between; min-height: 58px; padding: 8px 9px; }
 .invitation-editor-section-row-enabled { background: var(--color-surface); border-color: var(--color-border); }
@@ -369,6 +383,7 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .invitation-editor-controls .ui-card { border-radius: 24px; padding: 20px 18px; }
   .invitation-editor-lock, .invitation-editor-save-alert { width: calc(100% - 24px); }
   .invitation-editor-save-alert .ui-alert-content { display: grid; }
+  .invitation-editor-person-grid, .invitation-editor-social-grid { grid-template-columns: 1fr; }
 }
 .invitation-renderer { background: var(--invitation-background); border: 1px solid color-mix(in srgb, var(--invitation-accent) 35%, transparent); border-radius: 28px; box-shadow: 0 24px 80px rgb(33 22 76 / 12%); color: var(--invitation-foreground); margin: 0 auto; overflow: hidden; }
 .invitation-renderer-cover { align-items: center; display: grid; gap: 12px; min-height: 390px; padding: clamp(48px, 10vw, 92px) 28px; place-content: center; position: relative; text-align: center; }
@@ -401,6 +416,8 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-renderer-story li::before { background: var(--invitation-accent); border-radius: 50%; content: ""; height: 8px; left: 0; position: absolute; top: 8px; width: 8px; }
 .invitation-renderer-story span { font-size: 13px; opacity: .7; }
 .invitation-renderer-story p { font-size: 14px; opacity: .82; }
+.invitation-renderer-social-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; list-style: none; margin: 0; padding: 0; }
+.invitation-renderer-social-links a { border: 1px solid color-mix(in srgb, var(--invitation-accent) 40%, transparent); border-radius: 999px; color: var(--invitation-foreground); display: inline-block; font-size: 13px; padding: 7px 12px; text-decoration: none; }
 .invitation-renderer blockquote { font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-style: italic; margin: 0 auto; max-width: 610px; }
 .invitation-renderer-hashtag { color: var(--invitation-accent); font-weight: 900; text-align: center; }
 .invitation-renderer-footer { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); font-size: 11px; letter-spacing: .08em; opacity: .6; padding: 18px; text-align: center; text-transform: uppercase; }

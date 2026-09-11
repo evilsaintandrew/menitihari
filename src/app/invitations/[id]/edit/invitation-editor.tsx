@@ -25,8 +25,11 @@ import type { CommercialState, PublicationState } from "@/generated/prisma/clien
 import {
   INVITATION_CORE_SECTION_IDS,
   INVITATION_SECTION_OPTIONS,
+  MAX_LOVE_STORY_MILESTONES,
   normalizeInvitationSectionOrder,
+  invitationContentSchema,
   type InvitationContent,
+  type LoveStoryMilestone,
   type InvitationSectionId,
   type InvitationSectionOption,
 } from "@/modules/invitations/content";
@@ -192,6 +195,190 @@ function AppearanceControls({ theme, themeConfig, canEdit, onChange }: Appearanc
   );
 }
 
+type PersonId = "person1" | "person2";
+type SocialLinkId = "instagram" | "facebook" | "tiktok" | "youtube" | "website";
+
+const socialLinkOptions: readonly { id: SocialLinkId; label: string }[] = [
+  { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "youtube", label: "YouTube" },
+  { id: "website", label: "Website" },
+];
+
+function OptionalDetailsFields({
+  content,
+  canEdit,
+  onFullNameChange,
+  onParentChange,
+  onSocialLinkChange,
+}: {
+  readonly content: InvitationContent;
+  readonly canEdit: boolean;
+  readonly onFullNameChange: (person: PersonId, value: string) => void;
+  readonly onParentChange: (person: PersonId, parent: "father" | "mother", value: string) => void;
+  readonly onSocialLinkChange: (platform: SocialLinkId, value: string) => void;
+}) {
+  const fullNames = content.optional.fullNames;
+  const parents = content.optional.parentFields;
+  const socialLinks = content.optional.socialLinks;
+
+  return (
+    <div className="invitation-editor-optional-details">
+      <div className="invitation-editor-subsection-heading">
+        <h4>Detail pasangan <span>(opsional)</span></h4>
+        <p>Tambahkan nama lengkap, orang tua, dan tautan sosial bila diperlukan.</p>
+      </div>
+      <div className="invitation-editor-person-grid">
+        <Field>
+          <FieldLabel>Nama lengkap pasangan 1</FieldLabel>
+          <Input
+            aria-label="Nama lengkap pasangan 1"
+            disabled={!canEdit}
+            maxLength={240}
+            onChange={(event) => onFullNameChange("person1", event.target.value)}
+            placeholder="Contoh: Alya Putri"
+            value={fullNames?.person1 ?? ""}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Nama lengkap pasangan 2</FieldLabel>
+          <Input
+            aria-label="Nama lengkap pasangan 2"
+            disabled={!canEdit}
+            maxLength={240}
+            onChange={(event) => onFullNameChange("person2", event.target.value)}
+            placeholder="Contoh: Bima Pratama"
+            value={fullNames?.person2 ?? ""}
+          />
+        </Field>
+      </div>
+      <div className="invitation-editor-person-grid">
+        {(["person1", "person2"] as const).map((person, index) => (
+          <fieldset className="invitation-editor-parent-group" key={person}>
+            <legend>Orang tua pasangan {index + 1}</legend>
+            <Field>
+              <FieldLabel>Nama ayah</FieldLabel>
+              <Input
+                aria-label={`Nama ayah pasangan ${index + 1}`}
+                disabled={!canEdit}
+                maxLength={240}
+                onChange={(event) => onParentChange(person, "father", event.target.value)}
+                placeholder="Opsional"
+                value={parents?.[person]?.father ?? ""}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Nama ibu</FieldLabel>
+              <Input
+                aria-label={`Nama ibu pasangan ${index + 1}`}
+                disabled={!canEdit}
+                maxLength={240}
+                onChange={(event) => onParentChange(person, "mother", event.target.value)}
+                placeholder="Opsional"
+                value={parents?.[person]?.mother ?? ""}
+              />
+            </Field>
+          </fieldset>
+        ))}
+      </div>
+      <div className="invitation-editor-subsection-heading invitation-editor-subsection-heading-spaced">
+        <h4>Tautan sosial <span>(opsional)</span></h4>
+        <p>Bagikan akun pasangan di halaman undangan.</p>
+      </div>
+      <div className="invitation-editor-social-grid">
+        {socialLinkOptions.map(({ id, label }) => (
+          <Field key={id}>
+            <FieldLabel>{label}</FieldLabel>
+            <Input
+              aria-label={label}
+              disabled={!canEdit}
+              inputMode="url"
+              maxLength={2048}
+              onChange={(event) => onSocialLinkChange(id, event.target.value)}
+              placeholder="https://"
+              type="url"
+              value={socialLinks?.[id] ?? ""}
+            />
+          </Field>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LoveStoryFields({
+  content,
+  canEdit,
+  onChange,
+}: {
+  readonly content: InvitationContent;
+  readonly canEdit: boolean;
+  readonly onChange: (milestones: LoveStoryMilestone[]) => void;
+}) {
+  const milestones = content.optional.loveStory?.milestones ?? [];
+  const canAddMilestone = canEdit && milestones.length < MAX_LOVE_STORY_MILESTONES;
+
+  return (
+    <section aria-labelledby="love-story-heading" className="invitation-editor-love-story">
+      <div className="invitation-editor-section-heading">
+        <div>
+          <h3 id="love-story-heading">Love Story</h3>
+          <p className="invitation-editor-control-description">Ceritakan perjalanan pasangan dalam maksimal {MAX_LOVE_STORY_MILESTONES} momen.</p>
+        </div>
+        <Badge tone="neutral">{milestones.length}/{MAX_LOVE_STORY_MILESTONES}</Badge>
+      </div>
+      {milestones.length === 0 && <p className="invitation-editor-empty-hint">Belum ada momen. Tambahkan momen pertama untuk mulai bercerita.</p>}
+      <div className="invitation-editor-milestone-list">
+        {milestones.map((milestone, index) => (
+          <fieldset className="invitation-editor-milestone" key={`milestone-${index}`}>
+            <legend>Momen {index + 1}</legend>
+            <Field>
+              <FieldLabel>Tahun atau tanggal</FieldLabel>
+              <Input
+                aria-label={`Tanggal momen ${index + 1}`}
+                disabled={!canEdit}
+                maxLength={240}
+                onChange={(event) => onChange(milestones.map((item, itemIndex) => itemIndex === index ? { ...item, date: event.target.value || undefined } : item))}
+                placeholder="Contoh: 2020"
+                value={milestone.date ?? ""}
+              />
+            </Field>
+            <Field>
+              <FieldLabel required>Judul momen</FieldLabel>
+              <Input
+                aria-label={`Judul momen ${index + 1}`}
+                aria-invalid={!milestone.title.trim()}
+                disabled={!canEdit}
+                maxLength={240}
+                onChange={(event) => onChange(milestones.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))}
+                placeholder="Contoh: Pertama bertemu"
+                value={milestone.title}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Cerita singkat</FieldLabel>
+              <Textarea
+                aria-label={`Cerita momen ${index + 1}`}
+                disabled={!canEdit}
+                maxLength={5000}
+                onChange={(event) => onChange(milestones.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value || undefined } : item))}
+                placeholder="Ceritakan momen ini…"
+                value={milestone.description ?? ""}
+              />
+            </Field>
+            <Button disabled={!canEdit} onClick={() => onChange(milestones.filter((_, itemIndex) => itemIndex !== index))} size="sm" variant="ghost">Hapus momen</Button>
+          </fieldset>
+        ))}
+      </div>
+      <Button disabled={!canAddMilestone} onClick={() => onChange([...milestones, { date: undefined, title: "", description: undefined }])} size="sm" variant="secondary">
+        + Tambah momen
+      </Button>
+      {!canAddMilestone && milestones.length >= MAX_LOVE_STORY_MILESTONES && <FieldHint>Anda sudah mencapai batas {MAX_LOVE_STORY_MILESTONES} momen.</FieldHint>}
+    </section>
+  );
+}
+
 export function InvitationEditor({ invitationId, invitationTitle, initialContent, initialVersion, preview, theme, publicationState, commercialState, canEdit }: InvitationEditorProps) {
   const [draft, setDraft] = useState<InvitationContent>(initialContent);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig>(theme.config);
@@ -223,7 +410,15 @@ export function InvitationEditor({ invitationId, invitationTitle, initialContent
     setErrorMessage(null);
 
     try {
-      const result = await saveInvitationContentAction(invitationId, expectedVersion, snapshot, snapshotThemeConfig);
+      const parsedSnapshot = invitationContentSchema.safeParse(snapshot);
+      if (!parsedSnapshot.success) {
+        queuedRef.current = false;
+        setSaveState("error");
+        setErrorMessage("Lengkapi kolom yang wajib diisi sebelum menyimpan.");
+        return;
+      }
+
+      const result = await saveInvitationContentAction(invitationId, expectedVersion, parsedSnapshot.data, snapshotThemeConfig);
       if (result.ok && result.version !== undefined) {
         versionRef.current = result.version;
         if (revisionRef.current === revision && sameContent(draftRef.current, snapshot) && sameThemeConfig(themeConfigRef.current, snapshotThemeConfig)) {
@@ -288,6 +483,48 @@ export function InvitationEditor({ invitationId, invitationTitle, initialContent
     updateEditor({ ...draftRef.current, optional: { ...draftRef.current.optional, [field]: value || undefined } });
   }
 
+  function updateQuoteOrHashtag(field: "quoteOrPrayer" | "hashtag", value: string) {
+    updateEditor({ ...draftRef.current, optional: { ...draftRef.current.optional, [field]: value || undefined } });
+  }
+
+  function updateFullName(person: PersonId, value: string) {
+    const nextFullNames = { ...draftRef.current.optional.fullNames, [person]: value || undefined };
+    const hasValue = Object.values(nextFullNames).some(Boolean);
+    updateEditor({
+      ...draftRef.current,
+      optional: { ...draftRef.current.optional, fullNames: hasValue ? nextFullNames : undefined },
+    });
+  }
+
+  function updateParent(person: PersonId, parent: "father" | "mother", value: string) {
+    const nextPerson = { ...draftRef.current.optional.parentFields?.[person], [parent]: value || undefined };
+    const nextParents = { ...draftRef.current.optional.parentFields, [person]: nextPerson };
+    const hasValue = Object.values(nextParents).some((details) => details && Object.values(details).some(Boolean));
+    updateEditor({
+      ...draftRef.current,
+      optional: { ...draftRef.current.optional, parentFields: hasValue ? nextParents : undefined },
+    });
+  }
+
+  function updateSocialLink(platform: SocialLinkId, value: string) {
+    const nextSocialLinks = { ...draftRef.current.optional.socialLinks, [platform]: value || undefined };
+    const hasValue = Object.values(nextSocialLinks).some(Boolean);
+    updateEditor({
+      ...draftRef.current,
+      optional: { ...draftRef.current.optional, socialLinks: hasValue ? nextSocialLinks : undefined },
+    });
+  }
+
+  function updateLoveStory(milestones: LoveStoryMilestone[]) {
+    updateEditor({
+      ...draftRef.current,
+      optional: {
+        ...draftRef.current.optional,
+        loveStory: milestones.length > 0 ? { milestones } : undefined,
+      },
+    });
+  }
+
   function updateAppearance(nextThemeConfig: ThemeConfig) {
     updateEditor(draftRef.current, nextThemeConfig);
   }
@@ -341,12 +578,22 @@ export function InvitationEditor({ invitationId, invitationTitle, initialContent
             <div className="invitation-editor-section-heading"><h3>Couple</h3><Badge tone="success">✓</Badge></div>
             <Field><FieldLabel required>Nama tampilan pasangan 1</FieldLabel><Input aria-label="Nama tampilan pasangan 1" disabled={!canEdit} maxLength={120} onChange={(event) => updateCore("coupleDisplayName1", event.target.value)} value={draft.core.coupleDisplayName1} /></Field>
             <Field><FieldLabel required>Nama tampilan pasangan 2</FieldLabel><Input aria-label="Nama tampilan pasangan 2" disabled={!canEdit} maxLength={120} onChange={(event) => updateCore("coupleDisplayName2", event.target.value)} value={draft.core.coupleDisplayName2} /></Field>
+            <OptionalDetailsFields
+              canEdit={canEdit}
+              content={draft}
+              onFullNameChange={updateFullName}
+              onParentChange={updateParent}
+              onSocialLinkChange={updateSocialLink}
+            />
             <div className="invitation-editor-section-heading invitation-editor-section-heading-spaced"><div><h3>Bagian undangan</h3><p className="invitation-editor-control-description">Nyalakan bagian opsional dan atur urutannya.</p></div></div>
             <ol aria-label="Urutan bagian undangan" className="invitation-editor-section-list">{orderedSectionOptions.map((option) => <SectionRow activeCount={activeSectionOrder.length} canEdit={canEdit} enabled={activeSectionSet.has(option.id)} key={option.id} onMove={moveSection} onToggle={toggleSection} option={option} position={activeSectionOrder.indexOf(option.id)} />)}</ol>
             <FieldHint>Couple dan Events selalu tersedia. Bagian yang belum memiliki data akan tampil setelah fiturnya diisi.</FieldHint>
             <div className="invitation-editor-section-heading invitation-editor-section-heading-spaced"><h3>Opening &amp; Closing</h3></div>
             <Field><FieldLabel>Opening</FieldLabel><Textarea aria-label="Opening" disabled={!canEdit} maxLength={5000} onChange={(event) => updateOptional("opening", event.target.value)} placeholder="Tulis pembuka undangan…" value={draft.optional.opening ?? ""} /><FieldHint>Pesan pembuka yang tampil sebelum rangkaian acara.</FieldHint></Field>
             <Field><FieldLabel>Closing</FieldLabel><Textarea aria-label="Closing" disabled={!canEdit} maxLength={5000} onChange={(event) => updateOptional("closing", event.target.value)} placeholder="Tulis penutup undangan…" value={draft.optional.closing ?? ""} /><FieldHint>Pesan penutup untuk tamu.</FieldHint></Field>
+            <Field><FieldLabel>Quote, ayat, atau doa <span>(opsional)</span></FieldLabel><Textarea aria-label="Quote, ayat, atau doa" disabled={!canEdit} maxLength={5000} onChange={(event) => updateQuoteOrHashtag("quoteOrPrayer", event.target.value)} placeholder="Tulis quote atau doa pilihan Anda…" value={draft.optional.quoteOrPrayer ?? ""} /></Field>
+            <Field><FieldLabel>Hashtag <span>(opsional)</span></FieldLabel><Input aria-label="Hashtag" disabled={!canEdit} maxLength={240} onChange={(event) => updateQuoteOrHashtag("hashtag", event.target.value)} placeholder="#NamaPasangan" value={draft.optional.hashtag ?? ""} /></Field>
+            {activeSectionSet.has("love_story") && <LoveStoryFields canEdit={canEdit} content={draft} onChange={updateLoveStory} />}
             <AppearanceControls canEdit={canEdit} onChange={updateAppearance} theme={theme} themeConfig={themeConfig} />
             <div className="invitation-editor-quick-rows" aria-label="Bagian pengaturan lain"><div><span>Events</span><Badge tone="warning">! Lengkapi berikutnya</Badge></div><div><span>Sharing &amp; Privacy</span><TextLink href={`/invitations/${invitationId}/settings`}>Kelola →</TextLink></div></div>
           </CardContent></Card>

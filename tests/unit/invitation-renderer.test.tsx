@@ -111,4 +111,31 @@ describe("shared invitation renderer", () => {
       expect.stringContaining("Opening copy"),
     ]);
   });
+
+  it("renders optional couple details, social links, quote, hashtag, and Love Story content", () => {
+    render(<InvitationRenderer invitation={{
+      ...invitation,
+      content: {
+        ...invitation.content,
+        optional: {
+          fullNames: { person1: "Alya Putri", person2: "Bima Pratama" },
+          parentFields: { person1: { father: "Arif", mother: "Sari" } },
+          opening: "Selamat datang",
+          closing: "Sampai jumpa",
+          quoteOrPrayer: "Semoga penuh kasih.",
+          hashtag: "#AlyaBima",
+          socialLinks: { instagram: "https://instagram.com/alyabima" },
+          loveStory: { milestones: [{ date: "2019", title: "Pertama bertemu", description: "Awal cerita kami." }] },
+        },
+        sectionOrder: ["couple", "events", "opening_closing", "love_story"],
+      },
+    }} />);
+
+    expect(screen.getByText("Alya Putri")).toBeTruthy();
+    expect(screen.getByText("Arif & Sari")).toBeTruthy();
+    expect((screen.getByRole("link", { name: "Instagram" }) as HTMLAnchorElement).href).toBe("https://instagram.com/alyabima");
+    expect(screen.getByText("Semoga penuh kasih.")).toBeTruthy();
+    expect(screen.getByText("#AlyaBima")).toBeTruthy();
+    expect(screen.getByText("Pertama bertemu")).toBeTruthy();
+  });
 });

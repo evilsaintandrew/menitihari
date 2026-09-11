@@ -22,8 +22,6 @@ export interface SaveInvitationContentActionState {
   readonly message?: string;
 }
 
-export const initialSaveInvitationContentActionState: SaveInvitationContentActionState = { ok: false };
-
 export async function saveInvitationContentAction(
   invitationId: string,
   expectedVersion: number,
