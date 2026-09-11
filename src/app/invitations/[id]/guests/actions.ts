@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth";
 import { DomainError, toPublicError } from "@/modules/errors";
 import {
   archiveGuest,
+  bulkUpdateGuests,
+  guestBulkActionInputSchema,
   getGuestMergePreview,
   guestInputSchema,
   guestMergeInputSchema,
@@ -25,6 +27,11 @@ export interface GuestActionState {
   readonly errorCode?: string;
   readonly message?: string;
   readonly fieldErrors?: Readonly<Record<string, string>>;
+  readonly operation?: "GROUP" | "EVENT" | "DISTRIBUTION";
+  readonly updatedGuestCount?: number;
+  readonly requiresConfirmation?: boolean;
+  readonly historicalGuestCount?: number;
+  readonly historicalAssignmentCount?: number;
 }
 
 export interface GuestMergePreviewActionState {
@@ -42,6 +49,10 @@ function stringValue(formData: FormData, key: string): string {
 function optionalFormValue(formData: FormData, key: string): string | undefined {
   const value = stringValue(formData, key).trim();
   return value.length > 0 ? value : undefined;
+}
+
+function booleanValue(formData: FormData, key: string): boolean {
+  return stringValue(formData, key) === "true";
 }
 
 function parseGuestForm(formData: FormData) {
@@ -66,6 +77,11 @@ function validationState(error: z.ZodError): GuestActionState {
     if (typeof field === "string" && fieldErrors[field] === undefined) fieldErrors[field] = issue.message;
   }
   return { ok: false, errorCode: "VALIDATION_FAILED", message: "Periksa kembali detail tamu.", fieldErrors };
+}
+
+function bulkValidationState(error: z.ZodError): GuestActionState {
+  const state = validationState(error);
+  return { ...state, message: "Periksa kembali tindakan massal dan tamu yang dipilih." };
 }
 
 async function ownerId(): Promise<string | null> {
@@ -106,6 +122,71 @@ export async function saveGuestAction(
       };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Tamu belum tersimpan. Coba lagi." };
+  }
+}
+
+export async function bulkUpdateGuestsAction(
+  _previousState: GuestActionState,
+  formData: FormData,
+): Promise<GuestActionState> {
+  const operation = stringValue(formData, "operation");
+  const input = {
+    operation,
+    guestIds: formData.getAll("guestIds").filter((value): value is string => typeof value === "string"),
+    groupId: operation === "GROUP" ? (optionalFormValue(formData, "groupId") ?? null) : undefined,
+    eventId: operation === "EVENT" ? optionalFormValue(formData, "eventId") : undefined,
+    eventAction: operation === "EVENT" ? stringValue(formData, "eventAction") : undefined,
+    maxPartySize: operation === "EVENT" && stringValue(formData, "eventAction") === "ASSIGN"
+      ? Number(stringValue(formData, "maxPartySize"))
+      : undefined,
+    distributionStatus: operation === "DISTRIBUTION" ? stringValue(formData, "distributionStatus") : undefined,
+    confirmHistoricalRemoval: booleanValue(formData, "confirmHistoricalRemoval"),
+  };
+  const parsed = guestBulkActionInputSchema.safeParse(input);
+  if (!parsed.success) return bulkValidationState(parsed.error);
+
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    const result = await bulkUpdateGuests(prisma, userId, stringValue(formData, "invitationId"), parsed.data);
+    if (result.warning) {
+      return {
+        ok: false,
+        operation: result.operation,
+        requiresConfirmation: true,
+        historicalGuestCount: result.warning.guestCount,
+        historicalAssignmentCount: result.warning.assignmentCount,
+        errorCode: "CONFLICT",
+        message: `Sebanyak ${result.warning.guestCount} tamu memiliki riwayat RSVP atau check-in pada acara ini. Konfirmasi lagi untuk menghapus penugasan tanpa menghapus riwayat.`,
+      };
+    }
+    return {
+      ok: true,
+      operation: result.operation,
+      updatedGuestCount: result.updatedGuestCount,
+      message: result.operation === "GROUP"
+        ? `Grup diperbarui untuk ${result.updatedGuestCount} tamu.`
+        : result.operation === "EVENT"
+          ? `Penugasan acara diperbarui untuk ${result.updatedGuestCount} tamu.`
+          : `Status distribusi diperbarui untuk ${result.updatedGuestCount} tamu.`,
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) return bulkValidationState(error);
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return {
+        ok: false,
+        operation: parsed.data.operation,
+        errorCode: publicError.code,
+        message: publicError.code === "CAPACITY_EXCEEDED"
+          ? "Kapasitas undangan maksimal 500 orang. Kurangi kapasitas tamu lain sebelum menambahkan penugasan massal."
+          : publicError.code === "VALIDATION_FAILED" && parsed.data.operation === "EVENT" && parsed.data.eventAction === "ASSIGN"
+            ? "Maksimal orang tidak boleh lebih kecil dari riwayat kehadiran yang sudah tercatat."
+            : publicError.message,
+      };
+    }
+    return { ok: false, operation: parsed.data.operation, errorCode: "INTERNAL_ERROR", message: "Perubahan massal belum tersimpan. Coba lagi." };
   }
 }
 

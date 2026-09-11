@@ -290,6 +290,13 @@ Core row information:
 
 Do not show raw technical token/credential information.
 
+After selection, show a compact action bar that preserves the card/list
+layout and offers group, event assignment/unassignment, and manual
+distribution-status actions. Removing an event assignment that has RSVP or
+check-in history requires an explicit warning confirmation; the history is
+retained. `Ditandai Terkirim`, `WhatsApp Dibuka`, and `Dilihat` remain distinct
+owner-facing states.
+
 Persistent capacity indicator:
 
 **438 / 500 orang diundang**

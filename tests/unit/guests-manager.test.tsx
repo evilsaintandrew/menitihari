@@ -9,6 +9,7 @@ import type { GuestManagementData } from "@/modules/guests";
 vi.mock("@/app/invitations/[id]/guests/actions", () => ({
   saveGuestAction: async () => ({ ok: true }),
   archiveGuestAction: async () => ({ ok: true }),
+  bulkUpdateGuestsAction: async () => ({ ok: true }),
   getGuestMergePreviewAction: async () => ({ ok: false }),
   mergeGuestAction: async () => ({ ok: true }),
 }));
@@ -46,6 +47,8 @@ function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData
       notes: null,
       group: { id: "group-family", name: "Keluarga" },
       assignedEvents: [],
+      distributionStatus: "NOT_SENT",
+      viewedAt: null,
       createdAt: "2026-09-11T08:30:00.000Z",
     }],
     ...overrides,
@@ -94,6 +97,22 @@ describe("GuestsManager", () => {
 
     expect(screen.getByRole("heading", { name: "450 / 500 orang diundang" })).toBeTruthy();
     expect(screen.getByText("Kapasitas tamu hampir penuh. Sisa 50 orang.")).toBeTruthy();
+  });
+
+  it("shows distribution state and exposes compact bulk actions after selection", () => {
+    render(<GuestsManager data={data({ guests: [{
+      ...data().guests[0],
+      distributionStatus: "MARKED_SENT",
+      viewedAt: "2026-09-11T09:00:00.000Z",
+    }] })} />);
+
+    expect(screen.getByText("Ditandai Terkirim · Dilihat")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pilih Keluarga Santoso" }));
+    expect(screen.getByRole("heading", { name: "1 tamu dipilih" })).toBeTruthy();
+    expect(screen.getByLabelText("Tindakan")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Tindakan"), { target: { value: "DISTRIBUTION" } });
+    expect(screen.getByLabelText("Status baru")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Terapkan ke tamu terpilih" })).toBeTruthy();
   });
 
   it("exposes a manual merge review for duplicate warnings", () => {

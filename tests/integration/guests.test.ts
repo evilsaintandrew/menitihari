@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
-import { archiveGuest, mergeGuests, saveGuest } from "@/modules/guests";
+import { archiveGuest, bulkUpdateGuests, mergeGuests, saveGuest } from "@/modules/guests";
 import { createInvitation } from "@/modules/invitations";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
@@ -101,6 +101,57 @@ describe("guest CRUD PostgreSQL integration", () => {
       const archivedSource = await testPrisma!.guest.findUniqueOrThrow({ where: { id: source.guestId }, include: { eventAssignments: { include: { rsvp: true } } } });
       expect(archivedSource).toMatchObject({ archivedAt: expect.any(Date), mergedIntoGuestId: target.guestId });
       expect(archivedSource.eventAssignments[0]).toMatchObject({ state: "REMOVED", rsvp: { status: "ATTENDING", attendanceCount: 2 } });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+
+  it.skipIf(!testDatabaseUrl)("applies bulk group/distribution changes and warns before removing RSVP history", async () => {
+    const owner = await testPrisma!.user.create({ data: { email: `bulk-${Date.now()}@example.com`, emailVerified: true } });
+    const invitation = await createInvitation(testPrisma!, owner.id, { coupleDisplayName1: "Alya", coupleDisplayName2: "Bima", mainEventDate: "2026-12-20" });
+    try {
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const first = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Satu",
+        assignments: [{ eventId: event.id, maxPartySize: 1 }],
+      });
+      const second = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Dua",
+        assignments: [{ eventId: event.id, maxPartySize: 1 }],
+      });
+      const group = await testPrisma!.guestGroup.create({ data: { invitationId: invitation.id, name: "Keluarga" } });
+
+      await expect(bulkUpdateGuests(testPrisma!, owner.id, invitation.id, {
+        operation: "GROUP",
+        guestIds: [first.guestId, second.guestId],
+        groupId: group.id,
+      })).resolves.toMatchObject({ operation: "GROUP", updatedGuestCount: 2 });
+      await bulkUpdateGuests(testPrisma!, owner.id, invitation.id, {
+        operation: "DISTRIBUTION",
+        guestIds: [first.guestId, second.guestId],
+        distributionStatus: "MARKED_SENT",
+      });
+
+      const assignment = await testPrisma!.guestEvent.findFirstOrThrow({ where: { guestId: first.guestId, eventId: event.id } });
+      await testPrisma!.rSVP.create({ data: { guestEventId: assignment.id, status: "ATTENDING", attendanceCount: 1 } });
+      await expect(bulkUpdateGuests(testPrisma!, owner.id, invitation.id, {
+        operation: "EVENT",
+        guestIds: [first.guestId, second.guestId],
+        eventId: event.id,
+        eventAction: "UNASSIGN",
+      })).resolves.toMatchObject({ changed: false, warning: { guestCount: 1 } });
+
+      await bulkUpdateGuests(testPrisma!, owner.id, invitation.id, {
+        operation: "EVENT",
+        guestIds: [first.guestId, second.guestId],
+        eventId: event.id,
+        eventAction: "UNASSIGN",
+        confirmHistoricalRemoval: true,
+      });
+      await expect(testPrisma!.guest.findMany({ where: { id: { in: [first.guestId, second.guestId] }, groupId: group.id, distributionStatus: "MARKED_SENT" } })).resolves.toHaveLength(2);
+      await expect(testPrisma!.guestEvent.findFirstOrThrow({ where: { id: assignment.id }, include: { rsvp: true } })).resolves.toMatchObject({ state: "REMOVED", rsvp: { status: "ATTENDING" } });
     } finally {
       await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
       await testPrisma!.invitation.delete({ where: { id: invitation.id } });

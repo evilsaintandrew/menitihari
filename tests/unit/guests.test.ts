@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CommercialState, GuestEventState } from "@/generated/prisma/client";
 import {
   archiveGuest,
+  bulkUpdateGuests,
   getInvitedPeopleCapacity,
   mergeGuests,
   normalizePhone,
@@ -30,6 +31,7 @@ function transactionFor() {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: "guest-new" }),
       update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       delete: vi.fn().mockResolvedValue({}),
     },
     guestGroup: {
@@ -39,7 +41,7 @@ function transactionFor() {
     guestActivationCredential: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     guestSession: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     qRCredential: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-    event: { findMany: vi.fn().mockResolvedValue([{ id: "event-1" }]) },
+    event: { findMany: vi.fn().mockResolvedValue([{ id: "event-1" }]), findFirst: vi.fn().mockResolvedValue({ id: "event-1" }) },
     guestEvent: {
       findMany: vi.fn().mockResolvedValue([]),
       aggregate: vi.fn().mockResolvedValue({ _sum: { maxPartySize: 0 } }),
@@ -173,6 +175,79 @@ describe("guest domain", () => {
 
     expect(transaction.guest.create).not.toHaveBeenCalled();
     expect(transaction.guestEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("applies a group change to the selected guests in one owner mutation", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findMany.mockResolvedValue([{ id: "guest-1" }, { id: "guest-2" }]);
+
+    await expect(bulkUpdateGuests(databaseFor(transaction), "owner-1", invitation.id, {
+      operation: "GROUP",
+      guestIds: ["guest-1", "guest-2"],
+      groupId: "group-existing",
+    }, { now: () => now })).resolves.toMatchObject({ operation: "GROUP", updatedGuestCount: 2, changed: true });
+
+    expect(transaction.guest.updateMany).toHaveBeenCalledWith({
+      where: { invitationId: invitation.id, archivedAt: null, id: { in: ["guest-1", "guest-2"] } },
+      data: { groupId: "group-existing" },
+    });
+    expect(transaction.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "guests.bulk_updated" }) }));
+  });
+
+  it("warns before unassigning event history and preserves it after explicit confirmation", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findMany.mockResolvedValue([{ id: "guest-1" }]);
+    transaction.event.findFirst.mockResolvedValue({ id: "event-1" });
+    transaction.guestEvent.findMany.mockResolvedValue([{
+      id: "guest-event-1",
+      state: GuestEventState.ACTIVE,
+      maxPartySize: 2,
+      rsvp: { status: "ATTENDING", attendanceCount: 1 },
+      attendance: null,
+    }]);
+
+    await expect(bulkUpdateGuests(databaseFor(transaction), "owner-1", invitation.id, {
+      operation: "EVENT",
+      guestIds: ["guest-1"],
+      eventId: "event-1",
+      eventAction: "UNASSIGN",
+      confirmHistoricalRemoval: false,
+    }, { now: () => now })).resolves.toMatchObject({
+      changed: false,
+      warning: { code: "HISTORICAL_EVENT_UNASSIGN", guestCount: 1, assignmentCount: 1 },
+    });
+    expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
+
+    await expect(bulkUpdateGuests(databaseFor(transaction), "owner-1", invitation.id, {
+      operation: "EVENT",
+      guestIds: ["guest-1"],
+      eventId: "event-1",
+      eventAction: "UNASSIGN",
+      confirmHistoricalRemoval: true,
+    }, { now: () => now })).resolves.toMatchObject({ operation: "EVENT", changed: true });
+    expect(transaction.guestEvent.updateMany).toHaveBeenCalledWith({
+      where: { guestId: { in: ["guest-1"] }, eventId: "event-1", state: GuestEventState.ACTIVE },
+      data: { state: GuestEventState.REMOVED, removedAt: now },
+    });
+  });
+
+  it("updates distribution status without exposing guest data in the audit metadata", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findMany.mockResolvedValue([{ id: "guest-1" }, { id: "guest-2" }]);
+
+    await expect(bulkUpdateGuests(databaseFor(transaction), "owner-1", invitation.id, {
+      operation: "DISTRIBUTION",
+      guestIds: ["guest-1", "guest-2"],
+      distributionStatus: "MARKED_SENT",
+    }, { now: () => now })).resolves.toMatchObject({ operation: "DISTRIBUTION", updatedGuestCount: 2 });
+
+    expect(transaction.guest.updateMany).toHaveBeenCalledWith({
+      where: { invitationId: invitation.id, archivedAt: null, id: { in: ["guest-1", "guest-2"] } },
+      data: { distributionStatus: "MARKED_SENT" },
+    });
+    const auditCall = transaction.auditEvent.create.mock.calls.at(-1)?.[0] as { data: { metadata: Record<string, unknown> } };
+    expect(auditCall.data.metadata).toEqual(expect.objectContaining({ operation: "DISTRIBUTION", guest_count: 2, distribution_status: "MARKED_SENT" }));
+    expect(auditCall.data.metadata).not.toHaveProperty("guest_ids");
   });
 
   it("removes an assignment without deleting its RSVP history", async () => {
