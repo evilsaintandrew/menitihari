@@ -84,6 +84,17 @@ function EventCard({ event, timezone, language }: {
   readonly timezone: string;
   readonly language: "id" | "en";
 }) {
+  const externalLink = (value: string | null): string | null => {
+    if (!value) return null;
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  };
+  const mapsUrl = externalLink(event.mapsUrl);
+  const livestreamUrl = externalLink(event.livestreamUrl);
   return (
     <li className="invitation-renderer-event">
       <div>
@@ -93,7 +104,13 @@ function EventCard({ event, timezone, language }: {
       {(event.venue || event.address) && (
         <p className="invitation-renderer-muted">{[event.venue, event.address].filter(Boolean).join(" · ")}</p>
       )}
-      {event.dressCode && <p className="invitation-renderer-muted">{event.dressCode}</p>}
+      {event.locationNote && <p className="invitation-renderer-muted">{event.locationNote}</p>}
+      {event.dressCode && <p className="invitation-renderer-muted"><strong>Dress code:</strong> {event.dressCode}</p>}
+      {event.contact && <p className="invitation-renderer-muted"><strong>Kontak:</strong> {event.contact.name}{event.contact.role ? ` · ${event.contact.role}` : ""}{event.contact.phone ? ` · ${event.contact.phone}` : ""}</p>}
+      {(mapsUrl || livestreamUrl) && <p className="invitation-renderer-event-links">
+        {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer">Buka Maps</a>}
+        {livestreamUrl && <a href={livestreamUrl} target="_blank" rel="noreferrer">Tonton livestream</a>}
+      </p>}
     </li>
   );
 }

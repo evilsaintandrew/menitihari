@@ -653,7 +653,7 @@ export function InvitationEditor({ invitationId, invitationTitle, initialContent
             {activeSectionSet.has("love_story") && <LoveStoryFields canEdit={canEdit} content={draft} onChange={updateLoveStory} />}
             <AppearanceControls canEdit={canEdit} onChange={updateAppearance} theme={theme} themeConfig={themeConfig} />
             <ShareMetadataControls canEdit={canEdit} content={draft} onChange={updateShareCover} options={shareCoverOptions} />
-            <div className="invitation-editor-quick-rows" aria-label="Bagian pengaturan lain"><div><span>Events</span><Badge tone="warning">! Lengkapi berikutnya</Badge></div><div><span>Sharing &amp; Privacy</span><TextLink href={`/invitations/${invitationId}/settings`}>Kelola →</TextLink></div></div>
+            <div className="invitation-editor-quick-rows" aria-label="Bagian pengaturan lain"><div><span>Events</span><TextLink href={`/invitations/${invitationId}/events`}>Kelola acara →</TextLink></div><div><span>Sharing &amp; Privacy</span><TextLink href={`/invitations/${invitationId}/settings`}>Kelola →</TextLink></div></div>
           </CardContent></Card>
         </section>
         <aside aria-label="Live invitation preview" className="invitation-editor-preview-pane"><div className="invitation-editor-preview-heading"><div><p className="ui-overline">Live Preview</p><h2>Undangan Anda</h2></div><Badge tone="warning">Owner preview</Badge></div><div className="invitation-editor-preview-viewport"><ThemeErrorBoundary themeName={theme.definition.name}><InvitationThemeView invitation={livePreview} theme={liveTheme} /></ThemeErrorBoundary></div></aside>
