@@ -95,6 +95,13 @@ Run the checks required by the ticket and `docs/TESTING.md`. At minimum, where t
 
 For UI work also verify the relevant desktop/mobile surfaces, applicable loading/empty/validation/error/success states, keyboard/focus behavior, and browser console errors.
 
+Resource-conscious verification rules:
+
+- Run verification commands serially, one at a time. Do not run build, tests, database setup, or browser checks concurrently when doing so could increase memory use.
+- Always run builds with a 1 GB Node heap, for example `NODE_OPTIONS=--max-old-space-size=1024 pnpm build`.
+- Integration tests that require PostgreSQL use a temporary disposable Docker container. Apply the checked-in migrations, point the test URL at that container, and remove the container after verification.
+- Browser verification uses the `agent-browser` skill/CLI for dev-server and UI checks. Close the browser session when verification is complete.
+
 Never report a check as passing if it was not run. If a check cannot run, state exactly why and what remains unverified.
 
 ## 7. Documentation Policy

@@ -82,6 +82,18 @@ Run risk-appropriate checks. The expected baseline is:
 
 Follow `TESTING.md` when it requires stricter or domain-specific scenarios.
 
+### Verification Resource Discipline
+
+Run verification serially, one command or check at a time, to keep memory use predictable. Builds must always use a 1 GB Node heap, for example:
+
+```sh
+NODE_OPTIONS=--max-old-space-size=1024 pnpm build
+```
+
+Integration tests that require PostgreSQL must use a temporary disposable Docker container. Apply the checked-in migrations before testing and remove the container after the checks finish. Do not reuse a persistent local database for ticket verification unless the ticket explicitly requires it.
+
+For browser-required work, use the `agent-browser` skill/CLI to inspect the dev server and UI. Verify the relevant routes and states, then close the browser session. Record any unavailable E2E coverage explicitly rather than claiming it passed.
+
 For UI tickets, visually verify applicable referenced wireframes at representative mobile and desktop widths and exercise relevant loading, empty, validation, success, error, dialog/sheet, keyboard/focus, and recovery states. Low-fidelity wireframes define behavior and hierarchy; they are not pixel-diff targets.
 
 If verification fails, the issue stays `In Progress`. Do not downgrade or delete tests to obtain a green result unless the specification itself is being intentionally corrected.
