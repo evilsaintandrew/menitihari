@@ -28,6 +28,12 @@ function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData
     trialEndsAt: "2026-09-13T08:30:00.000Z",
     activeUntil: null,
     canEdit: true,
+    invitedPeopleCapacity: {
+      used: 3,
+      limit: 500,
+      remaining: 497,
+      isNearLimit: false,
+    },
     groups: [{ id: "group-family", name: "Keluarga" }],
     events: [{ id: "event-1", name: "Resepsi" }],
     guests: [{
@@ -77,5 +83,14 @@ describe("GuestsManager", () => {
     expect(screen.getByRole("button", { name: "Edit" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "Hapus" })).toHaveProperty("disabled", true);
     expect(screen.getByText("Daftar tamu hanya-baca")).toBeTruthy();
+  });
+
+  it("shows the invited-people counter and near-capacity warning", () => {
+    render(<GuestsManager data={data({
+      invitedPeopleCapacity: { used: 450, limit: 500, remaining: 50, isNearLimit: true },
+    })} />);
+
+    expect(screen.getByRole("heading", { name: "450 / 500 orang diundang" })).toBeTruthy();
+    expect(screen.getByText("Kapasitas tamu hampir penuh. Sisa 50 orang.")).toBeTruthy();
   });
 });

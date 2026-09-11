@@ -79,7 +79,13 @@ export async function saveGuestAction(
     if (error instanceof z.ZodError) return validationState(error);
     if (error instanceof DomainError) {
       const publicError = toPublicError(error);
-      return { ok: false, errorCode: publicError.code, message: publicError.message };
+      return {
+        ok: false,
+        errorCode: publicError.code,
+        message: publicError.code === "CAPACITY_EXCEEDED"
+          ? "Kapasitas undangan maksimal 500 orang. Kurangi kapasitas tamu lain sebelum menyimpan perubahan."
+          : publicError.message,
+      };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Tamu belum tersimpan. Coba lagi." };
   }

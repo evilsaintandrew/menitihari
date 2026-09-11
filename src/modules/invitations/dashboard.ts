@@ -1,8 +1,10 @@
 import {
   CommercialState,
+  GuestEventState,
   Prisma,
   type PrismaClient,
 } from "@/generated/prisma/client";
+import { getInvitedPeopleCapacity, sumPartySizes } from "@/modules/guests/capacity";
 
 import { ownerMembershipWhere } from "./authorization";
 
@@ -23,6 +25,15 @@ const dashboardInvitationSelect = {
     select: { slug: true },
     take: 1,
   },
+  guests: {
+    where: { archivedAt: null },
+    select: {
+      eventAssignments: {
+        where: { state: GuestEventState.ACTIVE },
+        select: { maxPartySize: true },
+      },
+    },
+  },
 } satisfies Prisma.InvitationSelect;
 
 type DashboardInvitationRecord = NonNullable<
@@ -33,8 +44,12 @@ type DashboardInvitationRecord = NonNullable<
   >[number]
 >;
 
-export type InvitationDashboardItem = Omit<DashboardInvitationRecord, "slugs"> & {
+export type InvitationDashboardItem = Omit<DashboardInvitationRecord, "slugs" | "guests"> & {
   readonly canonicalSlug: string | null;
+  readonly guestCapacityUsed: number;
+  readonly guestCapacityLimit: number;
+  readonly guestCapacityRemaining: number;
+  readonly guestCapacityNearLimit: boolean;
 };
 
 export interface InvitationDashboardSections {
@@ -58,10 +73,17 @@ export async function getInvitationDashboard(
     select: dashboardInvitationSelect,
   });
 
-  return invitations.map(({ slugs, ...invitation }) => ({
-    ...invitation,
-    canonicalSlug: slugs[0]?.slug ?? null,
-  }));
+  return invitations.map(({ slugs, guests, ...invitation }) => {
+    const capacity = getInvitedPeopleCapacity(sumPartySizes(guests.flatMap((guest) => guest.eventAssignments)));
+    return {
+      ...invitation,
+      canonicalSlug: slugs[0]?.slug ?? null,
+      guestCapacityUsed: capacity.used,
+      guestCapacityLimit: capacity.limit,
+      guestCapacityRemaining: capacity.remaining,
+      guestCapacityNearLimit: capacity.isNearLimit,
+    };
+  });
 }
 
 export function sectionInvitationDashboard(

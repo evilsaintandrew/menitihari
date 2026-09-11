@@ -11,6 +11,14 @@ import { ERROR_CODES } from "@/modules/errors/codes";
 import { getInvitationLifecycleCapabilities } from "@/modules/lifecycle";
 import { ownerMembershipWhere } from "@/modules/invitations/authorization";
 import { z } from "zod";
+import {
+  getInvitedPeopleCapacity,
+  INVITED_PEOPLE_LIMIT,
+  sumPartySizes,
+  type InvitedPeopleCapacity,
+} from "./capacity";
+
+export * from "./capacity";
 
 const PHONE_CHARACTERS = /^[+()\d\s.-]+$/;
 
@@ -89,6 +97,7 @@ export interface GuestManagementData {
   readonly trialEndsAt: string;
   readonly activeUntil: string | null;
   readonly canEdit: boolean;
+  readonly invitedPeopleCapacity: InvitedPeopleCapacity;
   readonly groups: readonly GuestGroupItem[];
   readonly events: readonly GuestEventOption[];
   readonly guests: readonly GuestManagementItem[];
@@ -230,6 +239,9 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
     trialEndsAt: record.trialEndsAt.toISOString(),
     activeUntil: record.activeUntil?.toISOString() ?? null,
     canEdit: getInvitationLifecycleCapabilities(record.commercialState, record.trialEndsAt, now, record.activeUntil).canEdit,
+    invitedPeopleCapacity: getInvitedPeopleCapacity(
+      sumPartySizes(record.guests.flatMap((guest) => guest.eventAssignments)),
+    ),
     groups: record.guestGroups,
     events: record.events,
     guests: record.guests.map((guest) => ({
@@ -312,6 +324,20 @@ export async function saveGuest(
       }
     }
     const invitationVersion = await assertEditableAndLock(transaction, userId, invitation, now);
+    const currentCapacity = await transaction.guestEvent.aggregate({
+      where: {
+        state: GuestEventState.ACTIVE,
+        guest: { invitationId, archivedAt: null },
+      },
+      _sum: { maxPartySize: true },
+    });
+    const currentGuestCapacity = sumPartySizes(
+      existingAssignments.filter(({ state }) => state === GuestEventState.ACTIVE),
+    );
+    const requestedGuestCapacity = sumPartySizes(parsed.assignments);
+    if ((currentCapacity._sum.maxPartySize ?? 0) - currentGuestCapacity + requestedGuestCapacity > INVITED_PEOPLE_LIMIT) {
+      throw new DomainError(ERROR_CODES.CAPACITY_EXCEEDED);
+    }
     const data = {
       displayName: parsed.displayName,
       normalizedPhone,

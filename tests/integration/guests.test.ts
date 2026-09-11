@@ -37,6 +37,40 @@ describe("guest CRUD PostgreSQL integration", () => {
       await testPrisma!.user.delete({ where: { id: owner.id } });
     }
   });
+
+  it.skipIf(!testDatabaseUrl)("serializes capacity-increasing mutations at the invitation boundary", async () => {
+    const owner = await testPrisma!.user.create({ data: { email: `capacity-${Date.now()}@example.com`, emailVerified: true } });
+    const invitation = await createInvitation(testPrisma!, owner.id, { coupleDisplayName1: "Alya", coupleDisplayName2: "Bima", mainEventDate: "2026-12-20" });
+    try {
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Besar",
+        assignments: [{ eventId: event.id, maxPartySize: 499 }],
+      });
+
+      const results = await Promise.allSettled([
+        saveGuest(testPrisma!, owner.id, invitation.id, null, {
+          displayName: "Tamu Satu",
+          assignments: [{ eventId: event.id, maxPartySize: 1 }],
+        }),
+        saveGuest(testPrisma!, owner.id, invitation.id, null, {
+          displayName: "Tamu Dua",
+          assignments: [{ eventId: event.id, maxPartySize: 1 }],
+        }),
+      ]);
+
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+      expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+      await expect(testPrisma!.guestEvent.aggregate({
+        where: { state: "ACTIVE", guest: { invitationId: invitation.id, archivedAt: null } },
+        _sum: { maxPartySize: true },
+      })).resolves.toMatchObject({ _sum: { maxPartySize: 500 } });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
 });
 
 afterAll(async () => {

@@ -155,6 +155,10 @@ function InvitationDashboardCard({
             <dt>{isDeletionPending ? "Dijadwalkan dihapus" : isDeleted ? "Status akhir" : "Berlaku sampai"}</dt>
             <dd>{expiry ? formatLifecycleDate(expiry) : "Sudah dihapus"}</dd>
           </div>
+          <div>
+            <dt>Orang diundang</dt>
+            <dd>{invitation.guestCapacityUsed} / {invitation.guestCapacityLimit}</dd>
+          </div>
           {invitation.commercialState === CommercialState.GRACE && invitation.activeUntil && (
             <div>
               <dt>Masa aktif berakhir</dt>
@@ -170,6 +174,13 @@ function InvitationDashboardCard({
         )}
         {invitation.commercialState === CommercialState.DELETION_PENDING && (
           <p className="invitation-dashboard-hint">Undangan offline dan menunggu purge sesuai jadwal server.</p>
+        )}
+        {invitation.guestCapacityNearLimit && (
+          <p className="invitation-dashboard-hint invitation-dashboard-capacity-warning">
+            {invitation.guestCapacityRemaining === 0
+              ? "Kapasitas tamu penuh. Penambahan orang akan ditolak."
+              : `Kapasitas tamu hampir penuh. Sisa ${invitation.guestCapacityRemaining} orang.`}
+          </p>
         )}
       </CardContent>
       {!isDeleted && (
