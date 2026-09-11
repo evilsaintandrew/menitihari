@@ -28,6 +28,18 @@ export const guestInputSchema = z
     groupId: z.string().trim().max(128).optional(),
     groupName: z.string().trim().max(120, "Nama grup maksimal 120 karakter.").optional(),
     notes: z.string().trim().max(1_000, "Catatan maksimal 1.000 karakter.").optional(),
+    assignments: z.array(z.object({
+      eventId: z.string().trim().min(1).max(128),
+      maxPartySize: z.number().int().min(1, "Maksimal orang minimal 1."),
+    }).strict()).min(1, "Pilih setidaknya satu acara.").superRefine((assignments, context) => {
+      const eventIds = new Set<string>();
+      assignments.forEach((assignment, index) => {
+        if (eventIds.has(assignment.eventId)) {
+          context.addIssue({ code: "custom", path: [index, "eventId"], message: "Acara tidak boleh dipilih dua kali." });
+        }
+        eventIds.add(assignment.eventId);
+      });
+    }),
   })
   .strict();
 
@@ -47,9 +59,16 @@ export interface GuestGroupItem {
 
 export interface GuestEventSummary {
   readonly id: string;
+  readonly assignmentId: string;
   readonly name: string;
+  readonly maxPartySize: number;
   readonly rsvpStatus: string | null;
   readonly attendanceCount: number | null;
+}
+
+export interface GuestEventOption {
+  readonly id: string;
+  readonly name: string;
 }
 
 export interface GuestManagementItem {
@@ -71,6 +90,7 @@ export interface GuestManagementData {
   readonly activeUntil: string | null;
   readonly canEdit: boolean;
   readonly groups: readonly GuestGroupItem[];
+  readonly events: readonly GuestEventOption[];
   readonly guests: readonly GuestManagementItem[];
 }
 
@@ -91,6 +111,11 @@ const managementSelect = {
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   },
+  events: {
+    where: { archivedAt: null },
+    orderBy: { startsAt: "asc" },
+    select: { id: true, name: true },
+  },
   guests: {
     where: { archivedAt: null },
     orderBy: { createdAt: "desc" },
@@ -106,7 +131,9 @@ const managementSelect = {
         where: { state: GuestEventState.ACTIVE },
         orderBy: { createdAt: "asc" },
         select: {
+          id: true,
           event: { select: { id: true, name: true } },
+          maxPartySize: true,
           rsvp: { select: { status: true, attendanceCount: true } },
         },
       },
@@ -204,6 +231,7 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
     activeUntil: record.activeUntil?.toISOString() ?? null,
     canEdit: getInvitationLifecycleCapabilities(record.commercialState, record.trialEndsAt, now, record.activeUntil).canEdit,
     groups: record.guestGroups,
+    events: record.events,
     guests: record.guests.map((guest) => ({
       id: guest.id,
       displayName: guest.displayName,
@@ -213,7 +241,9 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
       group: guest.group,
       assignedEvents: guest.eventAssignments.map((assignment) => ({
         id: assignment.event.id,
+        assignmentId: assignment.id,
         name: assignment.event.name,
+        maxPartySize: assignment.maxPartySize,
         rsvpStatus: assignment.rsvp?.status ?? null,
         attendanceCount: assignment.rsvp?.attendanceCount ?? null,
       })),
@@ -248,6 +278,39 @@ export async function saveGuest(
 
     const normalizedPhone = normalizePhone(parsed.phone);
     const groupId = await resolveGroup(transaction, invitationId, optionalValue(parsed.groupId), optionalValue(parsed.groupName));
+    const eventIds = parsed.assignments.map((assignment) => assignment.eventId);
+    const events = await transaction.event.findMany({
+      where: { invitationId, archivedAt: null, id: { in: eventIds } },
+      select: { id: true },
+    });
+    const existingEventIds = new Set(events.map((event) => event.id));
+    if (eventIds.some((eventId) => !existingEventIds.has(eventId))) throw new DomainError(ERROR_CODES.NOT_FOUND);
+
+    const existingAssignments = guestId
+      ? await transaction.guestEvent.findMany({
+        where: { guestId },
+        select: {
+          id: true,
+          eventId: true,
+          state: true,
+          maxPartySize: true,
+          rsvp: { select: { status: true, attendanceCount: true } },
+          attendance: { select: { actualCount: true } },
+        },
+      })
+      : [];
+    const existingByEventId = new Map(existingAssignments.map((assignment) => [assignment.eventId, assignment]));
+    for (const assignment of parsed.assignments) {
+      const existing = existingByEventId.get(assignment.eventId);
+      if (!existing || existing.maxPartySize === assignment.maxPartySize) continue;
+      const rsvpCount = existing.rsvp?.status === "ATTENDING" ? existing.rsvp.attendanceCount : null;
+      const actualCount = existing.attendance?.actualCount ?? null;
+      if ((rsvpCount !== null && rsvpCount > assignment.maxPartySize) || (actualCount !== null && actualCount > assignment.maxPartySize)) {
+        throw new DomainError(ERROR_CODES.VALIDATION_FAILED, {
+          details: { assignments: ["Maksimal orang tidak boleh lebih kecil dari jumlah kehadiran yang sudah tercatat."] },
+        });
+      }
+    }
     const invitationVersion = await assertEditableAndLock(transaction, userId, invitation, now);
     const data = {
       displayName: parsed.displayName,
@@ -267,10 +330,12 @@ export async function saveGuest(
         action: "guest.updated",
         metadata: { has_contact: normalizedPhone !== null, has_group: groupId !== null },
       });
+      await syncGuestEventAssignments(transaction, guestId, parsed.assignments, existingAssignments, now);
       return { guestId, invitationVersion, changed: true, mode: "updated" } satisfies GuestMutationResult;
     }
 
     const created = await transaction.guest.create({ data: { ...data, invitationId } });
+    await syncGuestEventAssignments(transaction, created.id, parsed.assignments, [], now);
     await writeAuditEvent(transaction, {
       actorId: userId,
       invitationId,
@@ -283,6 +348,47 @@ export async function saveGuest(
   });
 
   return result;
+}
+
+type ExistingGuestEventAssignment = {
+  readonly id: string;
+  readonly eventId: string;
+  readonly state: GuestEventState;
+  readonly maxPartySize: number;
+  readonly rsvp: { readonly status: string; readonly attendanceCount: number | null } | null;
+  readonly attendance: { readonly actualCount: number | null } | null;
+};
+
+async function syncGuestEventAssignments(
+  transaction: Prisma.TransactionClient,
+  guestId: string,
+  assignments: readonly { eventId: string; maxPartySize: number }[],
+  existingAssignments: readonly ExistingGuestEventAssignment[],
+  now: Date,
+): Promise<void> {
+  const requestedEventIds = new Set(assignments.map((assignment) => assignment.eventId));
+  for (const existing of existingAssignments) {
+    if (!requestedEventIds.has(existing.eventId) && existing.state === GuestEventState.ACTIVE) {
+      await transaction.guestEvent.update({
+        where: { id: existing.id },
+        data: { state: GuestEventState.REMOVED, removedAt: now },
+      });
+    }
+  }
+
+  for (const assignment of assignments) {
+    const existing = existingAssignments.find((candidate) => candidate.eventId === assignment.eventId);
+    if (existing) {
+      await transaction.guestEvent.update({
+        where: { id: existing.id },
+        data: { state: GuestEventState.ACTIVE, maxPartySize: assignment.maxPartySize, removedAt: null },
+      });
+    } else {
+      await transaction.guestEvent.create({
+        data: { guestId, eventId: assignment.eventId, maxPartySize: assignment.maxPartySize },
+      });
+    }
+  }
 }
 
 export async function archiveGuest(

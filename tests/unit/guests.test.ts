@@ -28,10 +28,17 @@ function transactionFor() {
       findFirst: vi.fn().mockResolvedValue({ id: "group-existing" }),
       upsert: vi.fn().mockResolvedValue({ id: "group-new" }),
     },
-    guestEvent: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     guestActivationCredential: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     guestSession: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     qRCredential: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    event: { findMany: vi.fn().mockResolvedValue([{ id: "event-1" }]) },
+    guestEvent: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: "guest-event-new" }),
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      delete: vi.fn().mockResolvedValue({}),
+    },
     auditEvent: { create: vi.fn().mockResolvedValue({ id: "audit-1" }) },
   };
 }
@@ -57,6 +64,7 @@ describe("guest domain", () => {
       phone: "0812 3456 7890",
       groupName: "Keluarga",
       notes: "Datang bersama anak",
+      assignments: [{ eventId: "event-1", maxPartySize: 4 }],
     }, { now: () => now })).resolves.toMatchObject({ guestId: "guest-new", mode: "created" });
 
     expect(transaction.guestGroup.upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -70,6 +78,73 @@ describe("guest domain", () => {
       notes: "Datang bersama anak",
     }) });
     expect(transaction.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "guest.created" }) }));
+  });
+
+  it("requires unique event assignments with a positive party capacity", async () => {
+    const transaction = transactionFor();
+    await expect(saveGuest(databaseFor(transaction), "owner-1", invitation.id, null, {
+      displayName: "Keluarga Santoso",
+      assignments: [
+        { eventId: "event-1", maxPartySize: 4 },
+        { eventId: "event-1", maxPartySize: 4 },
+      ],
+    }, { now: () => now })).rejects.toThrow("Acara tidak boleh dipilih dua kali.");
+    await expect(saveGuest(databaseFor(transaction), "owner-1", invitation.id, null, {
+      displayName: "Keluarga Santoso",
+      assignments: [{ eventId: "event-1", maxPartySize: 0 }],
+    }, { now: () => now })).rejects.toThrow("Maksimal orang minimal 1.");
+    expect(transaction.guest.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects reducing capacity below RSVP or check-in history", async () => {
+    const transaction = transactionFor();
+    transaction.guest.findFirst.mockResolvedValue({ id: "guest-history" });
+    transaction.guestEvent.findMany.mockResolvedValue([{
+      id: "guest-event-1",
+      eventId: "event-1",
+      state: GuestEventState.ACTIVE,
+      maxPartySize: 4,
+      rsvp: { status: "ATTENDING", attendanceCount: 3 },
+      attendance: { actualCount: null },
+    }]);
+
+    await expect(saveGuest(databaseFor(transaction), "owner-1", invitation.id, "guest-history", {
+      displayName: "Keluarga Santoso",
+      assignments: [{ eventId: "event-1", maxPartySize: 2 }],
+    }, { now: () => now })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(transaction.guestEvent.update).not.toHaveBeenCalled();
+    expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("removes an assignment without deleting its RSVP history", async () => {
+    const transaction = transactionFor();
+    transaction.event.findMany.mockResolvedValue([{ id: "event-1" }, { id: "event-2" }]);
+    transaction.guest.findFirst.mockResolvedValue({ id: "guest-history" });
+    transaction.guestEvent.findMany.mockResolvedValue([{
+      id: "guest-event-1",
+      eventId: "event-1",
+      state: GuestEventState.ACTIVE,
+      maxPartySize: 4,
+      rsvp: { status: "ATTENDING", attendanceCount: 2 },
+      attendance: null,
+    }, {
+      id: "guest-event-2",
+      eventId: "event-2",
+      state: GuestEventState.ACTIVE,
+      maxPartySize: 2,
+      rsvp: null,
+      attendance: null,
+    }]);
+
+    await expect(saveGuest(databaseFor(transaction), "owner-1", invitation.id, "guest-history", {
+      displayName: "Keluarga Santoso",
+      assignments: [{ eventId: "event-2", maxPartySize: 2 }],
+    }, { now: () => now })).resolves.toMatchObject({ mode: "updated" });
+    expect(transaction.guestEvent.update).toHaveBeenCalledWith({
+      where: { id: "guest-event-1" },
+      data: { state: GuestEventState.REMOVED, removedAt: now },
+    });
+    expect(transaction.guestEvent.delete).not.toHaveBeenCalled();
   });
 
   it("rejects phone values that cannot be normalized", () => {

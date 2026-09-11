@@ -425,6 +425,15 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .guests-card-actions .ui-alert { flex-basis: 100%; }
 .guests-form { display: grid; gap: 18px; }
 .guests-form-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.guests-event-fieldset { border: 1px solid var(--color-border); border-radius: 16px; display: grid; gap: 12px; margin: 0; padding: 16px; }
+.guests-event-fieldset legend { color: var(--color-ink-strong); font-size: 14px; font-weight: 800; padding: 0 6px; }
+.guests-event-fieldset legend span { color: var(--color-ink-muted); font-size: 12px; font-weight: 600; }
+.guests-event-list { display: grid; gap: 10px; }
+.guests-event-row { align-items: center; background: var(--color-surface-muted); border-radius: 12px; display: flex; gap: 16px; justify-content: space-between; padding: 10px 12px; }
+.guests-event-checkbox { align-items: center; color: var(--color-ink-strong); display: flex; flex: 1 1 auto; font-size: 14px; font-weight: 700; gap: 9px; }
+.guests-event-checkbox input { accent-color: var(--color-brand); height: 17px; width: 17px; }
+.guests-event-capacity { align-items: center; color: var(--color-ink-muted); display: flex; flex: 0 0 auto; font-size: 12px; font-weight: 700; gap: 8px; }
+.guests-event-capacity .ui-input { max-width: 88px; }
 .guests-form-actions { gap: 10px; margin-top: 2px; padding: 0; }
 .guests-field-errors { color: var(--color-danger); display: grid; gap: 4px; font-size: 13px; list-style: none; margin: 0; padding: 0; }
 .guests-form .ui-alert { margin-top: 2px; }
@@ -465,6 +474,8 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .guests-card { border-radius: 24px; padding: 20px 18px; }
   .guests-card-heading { display: grid; }
   .guests-form-grid { grid-template-columns: 1fr; }
+  .guests-event-row { align-items: flex-start; flex-direction: column; }
+  .guests-event-capacity { justify-content: space-between; width: 100%; }
   .guests-toolbar { grid-template-columns: 1fr; }
   .guests-toolbar .ui-button { width: 100%; }
 }

@@ -19,9 +19,10 @@ describe("guest CRUD PostgreSQL integration", () => {
         displayName: "Keluarga Santoso",
         phone: "0812 3456 7890",
         groupName: "Keluarga",
+        assignments: [{ eventId: (await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } })).id, maxPartySize: 4 }],
       });
-      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
-      await testPrisma!.guestEvent.create({ data: { guestId: created.guestId, eventId: event.id, maxPartySize: 4, rsvp: { create: { status: "ATTENDING", attendanceCount: 3 } } } });
+      const assignment = await testPrisma!.guestEvent.findFirstOrThrow({ where: { guestId: created.guestId } });
+      await testPrisma!.rSVP.create({ data: { guestEventId: assignment.id, status: "ATTENDING", attendanceCount: 3 } });
 
       const guest = await testPrisma!.guest.findUniqueOrThrow({ where: { id: created.guestId }, include: { group: true } });
       expect(guest).toMatchObject({ displayName: "Keluarga Santoso", normalizedPhone: "+6281234567890", displayPhone: "0812 3456 7890", group: { name: "Keluarga" } });

@@ -128,7 +128,7 @@ function EventForm({ invitationId, invitationTimezone, event, canEdit }: { reado
               <option value={EVENT_VISIBILITY.GENERIC}>Tampilkan di undangan umum</option>
               <option value={EVENT_VISIBILITY.PERSONALIZED_ONLY}>Khusus tamu personal</option>
             </Select>
-            <FieldHint>Acara khusus tamu belum ditampilkan pada halaman umum sampai alur assignment tamu tersedia.</FieldHint>
+            <FieldHint>Acara khusus tamu hanya ditampilkan kepada tamu yang ditetapkan pada acara tersebut.</FieldHint>
           </Field>
           <div className="events-form-grid">
             <Field><FieldLabel>Nama venue</FieldLabel><Input defaultValue={event?.venue ?? ""} disabled={!canEdit || pending} name="venue" placeholder="Contoh: Grand Ballroom" /></Field>
