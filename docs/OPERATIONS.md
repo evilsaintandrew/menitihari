@@ -82,6 +82,12 @@ Provide `pnpm ops:*` commands for:
 
 No admin UI required.
 
+Guest import parsing and commit are general-worker jobs. Parse jobs retain
+uploaded bytes only until validation completes. Commit jobs are bounded and
+safe to retry because every preview row has an explicit state and the created
+guest is recorded in the same transaction. A capacity race marks affected
+rows failed and never over-allocates the invitation.
+
 ## 7. Scheduler
 
 -   Separate process/container.

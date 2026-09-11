@@ -17,16 +17,17 @@ import {
   sumPartySizes,
   type InvitedPeopleCapacity,
 } from "./capacity";
+export { normalizeGuestName, normalizePhone } from "./normalization";
+import { normalizeGuestName, normalizePhone } from "./normalization";
 
 export * from "./capacity";
-
-const PHONE_CHARACTERS = /^[+()\d\s.-]+$/;
+export * from "./import";
 
 const optionalPhone = z
   .string()
   .trim()
   .max(40, "Nomor telepon maksimal 40 karakter.")
-  .refine((value) => value === "" || PHONE_CHARACTERS.test(value), "Masukkan nomor telepon yang valid.")
+  .refine((value) => value === "" || /^[+()\d\s.-]+$/.test(value), "Masukkan nomor telepon yang valid.")
   .optional();
 
 export const guestInputSchema = z
@@ -217,33 +218,6 @@ type ManagementRecord = NonNullable<Prisma.Result<
   { select: typeof managementSelect },
   "findFirst"
 >>;
-
-/** Normalize Indonesian/local phone input into a stable E.164-like value. */
-export function normalizePhone(value: string | null | undefined): string | null {
-  if (value === null || value === undefined || value.trim() === "") return null;
-  const trimmed = value.trim();
-  if (!PHONE_CHARACTERS.test(trimmed)) throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
-
-  let digits = trimmed.replace(/\D/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-  if (digits.length < 8 || digits.length > 15) throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
-
-  if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
-  else if (digits.startsWith("8") && digits.length <= 12) digits = `62${digits}`;
-
-  if (digits.length < 8 || digits.length > 15) throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
-  return `+${digits}`;
-}
-
-/** Normalize owner-entered names for conservative duplicate detection. */
-export function normalizeGuestName(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase("id-ID")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
 
 function optionalValue(value: string | undefined): string | null {
   return value && value.length > 0 ? value : null;

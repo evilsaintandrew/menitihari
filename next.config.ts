@@ -13,7 +13,10 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: localNetworkOrigins,
+      bodySizeLimit: "12mb",
     },
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
     useTypeScriptCli: false,
   },
   poweredByHeader: false,

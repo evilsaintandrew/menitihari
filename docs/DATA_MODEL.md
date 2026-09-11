@@ -118,6 +118,21 @@ Assignment between guest and event:
 
 This assignment is the source of event-specific capacity and visibility.
 
+### GuestImport / GuestImportRow
+
+`GuestImport` is a durable, owner-scoped preview/commit operation. It stores
+the sanitized source filename/type/size, lifecycle state, row counters, and
+capacity snapshot. The uploaded bytes are temporary input for the parse job
+and are cleared after parsing succeeds or fails; guest data remains in the
+row preview and normal guest tables.
+
+`GuestImportRow` stores the row number, normalized preview fields, resolved
+event assignments, safe validation issues, duplicate warnings, and an
+idempotent row state (`INCLUDED`, `EXCLUDED`, `COMMITTED`, or `FAILED`). Invalid
+rows default to `EXCLUDED` and cannot be included by the client. Commit
+workers record the created guest on the same transaction as the row state
+change so retrying a job cannot create the same guest twice.
+
 ## 5. Access
 
 ### GuestActivationCredential
