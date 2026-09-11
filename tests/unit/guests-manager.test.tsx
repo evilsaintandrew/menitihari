@@ -9,6 +9,8 @@ import type { GuestManagementData } from "@/modules/guests";
 vi.mock("@/app/invitations/[id]/guests/actions", () => ({
   saveGuestAction: async () => ({ ok: true }),
   archiveGuestAction: async () => ({ ok: true }),
+  getGuestMergePreviewAction: async () => ({ ok: false }),
+  mergeGuestAction: async () => ({ ok: true }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -92,5 +94,16 @@ describe("GuestsManager", () => {
 
     expect(screen.getByRole("heading", { name: "450 / 500 orang diundang" })).toBeTruthy();
     expect(screen.getByText("Kapasitas tamu hampir penuh. Sisa 50 orang.")).toBeTruthy();
+  });
+
+  it("exposes a manual merge review for duplicate warnings", () => {
+    const guests = data().guests;
+    render(<GuestsManager data={data({ guests: [
+      { ...guests[0], duplicateWarnings: [{ guestId: "guest-2", displayName: "Andi", displayPhone: null, matchingSignals: ["NAME"] }] },
+      { ...guests[0], id: "guest-2", displayName: "Andi", displayPhone: null },
+    ] })} />);
+
+    expect(screen.getByText("Andi", { selector: "strong" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tinjau merge" })).toBeTruthy();
   });
 });
