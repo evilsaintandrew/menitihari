@@ -29,6 +29,10 @@ function invitation(
     purgeAt: null,
     createdAt: new Date("2026-09-10T08:30:00.000Z"),
     canonicalSlug: `invitation-${id}`,
+    guestCapacityUsed: 0,
+    guestCapacityLimit: 500,
+    guestCapacityRemaining: 500,
+    guestCapacityNearLimit: false,
     ...overrides,
   };
 }
@@ -36,13 +40,15 @@ function invitation(
 describe("invitation dashboard rules", () => {
   it("reads every owner invitation without applying a product count cap", async () => {
     const findMany = vi.fn().mockResolvedValue([
-      { ...invitation("one", CommercialState.TRIAL), slugs: [{ slug: "one" }] },
-      { ...invitation("two", CommercialState.PAID_ACTIVE), slugs: [{ slug: "two" }] },
+      { ...invitation("one", CommercialState.TRIAL), slugs: [{ slug: "one" }], guests: [{ eventAssignments: [{ maxPartySize: 4 }] }] },
+      { ...invitation("two", CommercialState.PAID_ACTIVE), slugs: [{ slug: "two" }], guests: [] },
     ]);
     const result = await getInvitationDashboard({ invitation: { findMany } } as never, "user-1");
 
     expect(result).toHaveLength(2);
     expect(result[0].canonicalSlug).toBe("one");
+    expect(result[0].guestCapacityUsed).toBe(4);
+    expect(result[0].guestCapacityRemaining).toBe(496);
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { members: { some: { userId: "user-1", role: "OWNER" } } },
       orderBy: { createdAt: "desc" },

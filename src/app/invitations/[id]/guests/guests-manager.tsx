@@ -17,6 +17,7 @@ import {
   FieldHint,
   FieldLabel,
   Input,
+  Progress,
   Select,
   TextLink,
   Textarea,
@@ -218,6 +219,25 @@ export function GuestsManager({ data }: { readonly data: GuestManagementData }) 
         <div className="guests-header-badges"><Badge tone={data.canEdit ? "info" : "warning"}>{lifecycleLabel(data.commercialState)}</Badge><Badge tone="neutral">{data.guests.length} tamu aktif</Badge></div>
       </header>
       {!data.canEdit && <Alert className="guests-lock" tone="warning" title="Daftar tamu hanya-baca">Masa aktif undangan ini tidak mengizinkan perubahan. Data tamu tetap tersedia.</Alert>}
+      <section aria-label="Kapasitas tamu" className="guests-capacity-card">
+        <div className="guests-capacity-heading">
+          <div>
+            <p className="ui-overline">Kapasitas undangan</p>
+            <h2>{data.invitedPeopleCapacity.used} / {data.invitedPeopleCapacity.limit} orang diundang</h2>
+          </div>
+          <Badge tone={data.invitedPeopleCapacity.remaining === 0 ? "danger" : data.invitedPeopleCapacity.isNearLimit ? "warning" : "success"}>
+            {data.invitedPeopleCapacity.remaining === 0 ? "Penuh" : `Sisa ${data.invitedPeopleCapacity.remaining}`}
+          </Badge>
+        </div>
+        <Progress label="Kapasitas tamu" value={(data.invitedPeopleCapacity.used / data.invitedPeopleCapacity.limit) * 100} />
+        {data.invitedPeopleCapacity.isNearLimit && (
+          <p className="guests-capacity-warning" role="status">
+            {data.invitedPeopleCapacity.remaining === 0
+              ? "Kapasitas 500 orang sudah penuh. Kurangi penugasan yang ada sebelum menambahkan tamu atau kapasitas baru."
+              : `Kapasitas tamu hampir penuh. Sisa ${data.invitedPeopleCapacity.remaining} orang.`}
+          </p>
+        )}
+      </section>
       <section aria-label="Kontrol tamu" className="guests-toolbar">
         <Input aria-label="Cari tamu" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor, atau grup…" type="search" value={query} />
         <Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button>

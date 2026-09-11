@@ -272,6 +272,7 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-dashboard-meta dt { color: var(--color-ink-muted); font-size: 12px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
 .invitation-dashboard-meta dd { color: var(--color-ink-strong); font-weight: 800; margin: 2px 0 0; }
 .invitation-dashboard-hint { color: var(--color-ink-muted); font-size: 14px; }
+.invitation-dashboard-capacity-warning { color: var(--color-danger); font-weight: 700; }
 .invitation-dashboard-card-actions { align-items: center; margin-top: 20px; }
 .invitation-dashboard-card-actions .ui-text-link:not(.ui-button) { margin-left: auto; }
 .invitation-dashboard-empty-card { max-width: 700px; margin: 0 auto; }
@@ -406,6 +407,10 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .guests-lede { color: var(--color-ink-muted); max-width: 680px; }
 .guests-header-badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .guests-lock { margin-bottom: 20px; }
+.guests-capacity-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 18px; display: grid; gap: 14px; margin: 0 auto 18px; max-width: 1080px; padding: 18px; }
+.guests-capacity-heading { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
+.guests-capacity-heading h2 { font-size: 22px; margin-top: 4px; }
+.guests-capacity-warning { color: var(--color-danger); font-size: 14px; font-weight: 700; }
 .guests-toolbar { align-items: center; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 18px; }
 .guests-add-card { margin-bottom: 18px; }
 .guests-add-card > .guests-form { border-top: 1px solid var(--color-border); margin-top: 22px; padding-top: 22px; }

@@ -25,6 +25,10 @@ function invitation(id: string, commercialState: CommercialState): InvitationDas
     purgeAt: commercialState === CommercialState.DELETION_PENDING ? new Date("2026-09-17T08:30:00.000Z") : null,
     createdAt: new Date("2026-09-10T08:30:00.000Z"),
     canonicalSlug: `invitation-${id}`,
+    guestCapacityUsed: 0,
+    guestCapacityLimit: 500,
+    guestCapacityRemaining: 500,
+    guestCapacityNearLimit: false,
   };
 }
 
@@ -54,5 +58,17 @@ describe("InvitationDashboard", () => {
 
     expect(screen.getByRole("heading", { name: "Belum ada undangan" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Mulai Buat Undangan" }).getAttribute("href")).toBe("/invitations/new");
+  });
+
+  it("shows capacity usage and a warning near the entitlement", () => {
+    render(<InvitationDashboard invitations={[{
+      ...invitation("near-limit", CommercialState.TRIAL),
+      guestCapacityUsed: 450,
+      guestCapacityRemaining: 50,
+      guestCapacityNearLimit: true,
+    }]} />);
+
+    expect(screen.getByText("450 / 500")).toBeTruthy();
+    expect(screen.getByText("Kapasitas tamu hampir penuh. Sisa 50 orang.")).toBeTruthy();
   });
 });

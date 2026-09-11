@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CommercialState, GuestEventState } from "@/generated/prisma/client";
-import { archiveGuest, normalizePhone, saveGuest } from "@/modules/guests";
+import {
+  archiveGuest,
+  getInvitedPeopleCapacity,
+  normalizePhone,
+  saveGuest,
+} from "@/modules/guests";
 
 const now = new Date("2026-09-11T08:30:00.000Z");
 const invitation = {
@@ -34,6 +39,7 @@ function transactionFor() {
     event: { findMany: vi.fn().mockResolvedValue([{ id: "event-1" }]) },
     guestEvent: {
       findMany: vi.fn().mockResolvedValue([]),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { maxPartySize: 0 } }),
       create: vi.fn().mockResolvedValue({ id: "guest-event-new" }),
       update: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -50,6 +56,12 @@ function databaseFor(transaction: ReturnType<typeof transactionFor>) {
 }
 
 describe("guest domain", () => {
+  it("summarizes invited people and marks the final 50 places as near capacity", () => {
+    expect(getInvitedPeopleCapacity(449)).toEqual({ used: 449, limit: 500, remaining: 51, isNearLimit: false });
+    expect(getInvitedPeopleCapacity(450)).toEqual({ used: 450, limit: 500, remaining: 50, isNearLimit: true });
+    expect(getInvitedPeopleCapacity(510)).toEqual({ used: 510, limit: 500, remaining: 0, isNearLimit: true });
+  });
+
   it("normalizes common Indonesian phone formats to a stable value", () => {
     expect(normalizePhone("0812 3456-7890")).toBe("+6281234567890");
     expect(normalizePhone("+62 (812) 3456-7890")).toBe("+6281234567890");
@@ -114,6 +126,19 @@ describe("guest domain", () => {
     }, { now: () => now })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     expect(transaction.guestEvent.update).not.toHaveBeenCalled();
     expect(transaction.invitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects an assignment that would exceed the 500 invited-people entitlement", async () => {
+    const transaction = transactionFor();
+    transaction.guestEvent.aggregate.mockResolvedValue({ _sum: { maxPartySize: 499 } });
+
+    await expect(saveGuest(databaseFor(transaction), "owner-1", invitation.id, null, {
+      displayName: "Tamu Baru",
+      assignments: [{ eventId: "event-1", maxPartySize: 2 }],
+    }, { now: () => now })).rejects.toMatchObject({ code: "CAPACITY_EXCEEDED" });
+
+    expect(transaction.guest.create).not.toHaveBeenCalled();
+    expect(transaction.guestEvent.create).not.toHaveBeenCalled();
   });
 
   it("removes an assignment without deleting its RSVP history", async () => {
