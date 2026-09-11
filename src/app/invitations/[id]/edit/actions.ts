@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { DomainError, toPublicError } from "@/modules/errors";
@@ -10,6 +11,7 @@ import {
 } from "@/modules/invitations";
 import { nextPublicCacheInvalidator } from "@/server/public-cache";
 import { prisma } from "@/server/db";
+import type { ThemeConfig } from "@/modules/themes";
 
 export interface SaveInvitationContentActionState {
   readonly ok: boolean;
@@ -26,6 +28,7 @@ export async function saveInvitationContentAction(
   invitationId: string,
   expectedVersion: number,
   content: InvitationContent,
+  themeConfig?: ThemeConfig,
 ): Promise<SaveInvitationContentActionState> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
@@ -41,11 +44,18 @@ export async function saveInvitationContentAction(
       prisma,
       session.user.id,
       invitationId,
-      { expectedVersion, content },
+      { expectedVersion, content, themeConfig },
       { cache: nextPublicCacheInvalidator },
     );
     return { ok: true, version: result.version, message: "Perubahan tersimpan." };
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        ok: false,
+        errorCode: "VALIDATION_FAILED",
+        message: "Kontrol tampilan atau isi undangan belum valid.",
+      };
+    }
     if (error instanceof DomainError) {
       const publicError = toPublicError(error);
       return {

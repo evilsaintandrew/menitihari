@@ -121,6 +121,50 @@ export const INVITATION_SECTION_IDS = [
 export const invitationSectionIdSchema = z.enum(INVITATION_SECTION_IDS);
 export type InvitationSectionId = z.infer<typeof invitationSectionIdSchema>;
 
+export const INVITATION_CORE_SECTION_IDS = ["couple", "events"] as const;
+export const INVITATION_OPTIONAL_SECTION_IDS = [
+  "opening_closing",
+  "love_story",
+  "gallery",
+  "music",
+  "gift",
+  "rsvp",
+  "guestbook",
+] as const satisfies readonly InvitationSectionId[];
+
+export interface InvitationSectionOption {
+  readonly id: InvitationSectionId;
+  readonly label: string;
+  readonly description: string;
+  readonly optional: boolean;
+}
+
+/** The editor's supported section inventory. Feature data is owned by its domain ticket. */
+export const INVITATION_SECTION_OPTIONS: readonly InvitationSectionOption[] = Object.freeze([
+  { id: "couple", label: "Couple", description: "Nama pasangan dan identitas utama.", optional: false },
+  { id: "events", label: "Events", description: "Rangkaian acara yang terlihat oleh tamu.", optional: false },
+  { id: "opening_closing", label: "Opening & Closing", description: "Pesan pembuka, penutup, dan doa.", optional: true },
+  { id: "love_story", label: "Love Story", description: "Kisah perjalanan pasangan.", optional: true },
+  { id: "gallery", label: "Gallery", description: "Foto-foto pilihan pasangan.", optional: true },
+  { id: "music", label: "Music", description: "Musik latar undangan.", optional: true },
+  { id: "gift", label: "E-Angpao", description: "Informasi hadiah digital.", optional: true },
+  { id: "rsvp", label: "RSVP", description: "Konfirmasi kehadiran tamu.", optional: true },
+  { id: "guestbook", label: "Guestbook", description: "Ucapan dari tamu.", optional: true },
+]);
+
+export const DEFAULT_INVITATION_SECTION_ORDER = INVITATION_SECTION_IDS;
+
+export function normalizeInvitationSectionOrder(
+  sectionOrder: readonly InvitationSectionId[] | undefined,
+): InvitationSectionId[] {
+  const ordered = sectionOrder ? [...sectionOrder] : [...DEFAULT_INVITATION_SECTION_ORDER];
+  const present = new Set(ordered);
+  for (const coreSection of INVITATION_CORE_SECTION_IDS) {
+    if (!present.has(coreSection)) ordered.unshift(coreSection);
+  }
+  return ordered;
+}
+
 const sectionOrderSchema = z
   .array(invitationSectionIdSchema)
   .max(INVITATION_SECTION_IDS.length)
@@ -130,6 +174,14 @@ const sectionOrderSchema = z
         code: "custom",
         message: "sectionOrder must not contain duplicate sections",
       });
+    }
+    for (const coreSection of INVITATION_CORE_SECTION_IDS) {
+      if (!sectionIds.includes(coreSection)) {
+        context.addIssue({
+          code: "custom",
+          message: `sectionOrder must include ${coreSection}`,
+        });
+      }
     }
   });
 

@@ -51,6 +51,7 @@ const theme: ResolvedThemePresentation = {
     name: "Klasik Mutiara",
     description: "Tema klasik",
     defaultConfig: { accent: "rose", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" },
+    accentOptions: [{ id: "rose", label: "Rose", color: "#bd7185" }, { id: "blush", label: "Blush", color: "#df86a8" }],
     preview: { backgroundColor: "#fff8f5", foregroundColor: "#402b35", accentColor: "#bd7185" },
   },
   config: { accent: "rose", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" },
@@ -130,5 +131,46 @@ describe("WF-06 invitation editor", () => {
     });
     expect(screen.getByText("Muat versi terbaru")).toBeTruthy();
     expect((screen.getByLabelText("Opening") as HTMLTextAreaElement).value).toBe("Draf lokal");
+  });
+
+  it("toggles an optional section and autosaves its ordering", async () => {
+    vi.useFakeTimers();
+    saveInvitationContentAction.mockResolvedValue({ ok: true, version: 2, message: "Perubahan tersimpan." });
+    renderEditor();
+
+    fireEvent.click(screen.getByLabelText("Aktifkan Love Story"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+
+    expect(saveInvitationContentAction).toHaveBeenCalledWith(
+      "editor-ui-1",
+      1,
+      expect.objectContaining({ sectionOrder: expect.arrayContaining(["love_story"]) }),
+      expect.objectContaining({ accent: "rose" }),
+    );
+  });
+
+  it("reorders enabled sections and saves curated appearance controls", async () => {
+    vi.useFakeTimers();
+    saveInvitationContentAction.mockResolvedValue({ ok: true, version: 2, message: "Perubahan tersimpan." });
+    renderEditor();
+
+    fireEvent.click(screen.getByLabelText("Aktifkan Love Story"));
+    fireEvent.click(screen.getByRole("button", { name: "Naikkan Love Story" }));
+    fireEvent.change(screen.getByLabelText("Pasangan font"), { target: { value: "script-sans" } });
+    fireEvent.change(screen.getByLabelText("Cover"), { target: { value: "framed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aksen Blush" }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+
+    expect(saveInvitationContentAction).toHaveBeenCalledWith(
+      "editor-ui-1",
+      1,
+      expect.objectContaining({ sectionOrder: ["couple", "events", "opening_closing", "love_story", "rsvp"] }),
+      { accent: "blush", fontPairing: "script-sans", coverStyle: "framed", sectionStyle: "soft" },
+    );
   });
 });

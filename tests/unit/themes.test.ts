@@ -65,6 +65,7 @@ describe("theme registry", () => {
 
     for (const theme of THEME_REGISTRY) {
       expect(themeConfigSchema.safeParse(theme.defaultConfig).success).toBe(true);
+      expect(theme.accentOptions).toContainEqual(expect.objectContaining({ id: theme.defaultConfig.accent }));
       expect(theme.preview.backgroundColor).toMatch(/^#[0-9a-f]{6}$/i);
       expect(getThemeDefinition(theme.id, theme.version)).toEqual(theme);
     }
@@ -79,6 +80,12 @@ describe("theme registry", () => {
       ...defaultThemeConfig,
       accent: "not-registered",
     }).success).toBe(false);
+  });
+
+  it("keeps accent choices owned by each theme", () => {
+    const botanical = getThemeDefinition("botanical")!;
+    expect(botanical.accentOptions.map(({ id }) => id)).toEqual(["sage", "ocean", "sand"]);
+    expect(getThemeDefinition("classic")!.accentOptions.some(({ id }) => id === "ocean")).toBe(false);
   });
 
   it.each([

@@ -31,7 +31,7 @@ export const themeVersionSchema = z.enum(THEME_VERSIONS);
 export type ThemeId = z.infer<typeof themeIdSchema>;
 export type ThemeVersion = z.infer<typeof themeVersionSchema>;
 
-const THEME_ACCENTS = [
+export const THEME_ACCENTS = [
   "rose",
   "sage",
   "sand",
@@ -44,15 +44,27 @@ const THEME_ACCENTS = [
   "ink",
 ] as const;
 
-const FONT_PAIRINGS = [
+export const FONT_PAIRINGS = [
   "serif-sans",
   "display-sans",
   "sans-serif",
   "script-sans",
 ] as const;
 
-const COVER_STYLES = ["centered", "editorial", "framed", "full-bleed"] as const;
+export const COVER_STYLES = ["centered", "editorial", "framed", "full-bleed"] as const;
 const SECTION_STYLES = ["soft", "airy", "lined", "panelled"] as const;
+
+export type ThemeAccent = (typeof THEME_ACCENTS)[number];
+export type FontPairing = (typeof FONT_PAIRINGS)[number];
+export type CoverStyle = (typeof COVER_STYLES)[number];
+
+const themeAccentOptionSchema = z.object({
+  id: z.enum(THEME_ACCENTS),
+  label: z.string().trim().min(1).max(40),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i),
+}).strict();
+
+export type ThemeAccentOption = z.infer<typeof themeAccentOptionSchema>;
 
 /** Curated presentation controls. No lifecycle or invitation business rules belong here. */
 export const themeConfigSchema = z
@@ -85,9 +97,19 @@ export const themeDefinitionSchema = z
     name: z.string().trim().min(1).max(80),
     description: z.string().trim().min(1).max(240),
     defaultConfig: themeConfigSchema,
+    accentOptions: z.array(themeAccentOptionSchema).min(1),
     preview: themePreviewSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((theme, context) => {
+    const ids = theme.accentOptions.map(({ id }) => id);
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({ code: "custom", message: "Theme accent ids must be unique" });
+    }
+    if (!ids.includes(theme.defaultConfig.accent)) {
+      context.addIssue({ code: "custom", message: "Theme accents must include the default accent" });
+    }
+  });
 
 export interface ThemeDefinition extends z.infer<typeof themeDefinitionSchema> {}
 
@@ -98,6 +120,7 @@ const launchThemeDefinitions = [
     name: "Klasik Mutiara",
     description: "Hangat, seimbang, dan cocok untuk cerita pernikahan yang tak lekang waktu.",
     defaultConfig: { accent: "rose", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" },
+    accentOptions: [{ id: "rose", label: "Rose", color: "#bd7185" }, { id: "blush", label: "Blush", color: "#df86a8" }, { id: "plum", label: "Plum", color: "#8e629c" }],
     preview: { backgroundColor: "#fff8f5", foregroundColor: "#402b35", accentColor: "#bd7185" },
   },
   {
@@ -106,6 +129,7 @@ const launchThemeDefinitions = [
     name: "Botanical",
     description: "Nuansa daun yang tenang dengan ruang lapang untuk momen-momen penting.",
     defaultConfig: { accent: "sage", fontPairing: "serif-sans", coverStyle: "editorial", sectionStyle: "airy" },
+    accentOptions: [{ id: "sage", label: "Sage", color: "#6d956d" }, { id: "ocean", label: "Ocean", color: "#4c9eb0" }, { id: "sand", label: "Sand", color: "#b59e77" }],
     preview: { backgroundColor: "#f5f8f1", foregroundColor: "#294437", accentColor: "#6d956d" },
   },
   {
@@ -114,6 +138,7 @@ const launchThemeDefinitions = [
     name: "Minimal",
     description: "Bersih dan ringan agar nama serta tanggal acara menjadi pusat perhatian.",
     defaultConfig: { accent: "sand", fontPairing: "sans-serif", coverStyle: "centered", sectionStyle: "airy" },
+    accentOptions: [{ id: "sand", label: "Sand", color: "#b59e77" }, { id: "ink", label: "Ink", color: "#5e5e5a" }, { id: "rose", label: "Rose", color: "#bd7185" }],
     preview: { backgroundColor: "#fbfaf7", foregroundColor: "#30302d", accentColor: "#b59e77" },
   },
   {
@@ -122,6 +147,7 @@ const launchThemeDefinitions = [
     name: "Modern",
     description: "Kontras segar dan tata letak tegas untuk pasangan dengan gaya kontemporer.",
     defaultConfig: { accent: "indigo", fontPairing: "display-sans", coverStyle: "full-bleed", sectionStyle: "panelled" },
+    accentOptions: [{ id: "indigo", label: "Indigo", color: "#5969d8" }, { id: "ocean", label: "Ocean", color: "#4c9eb0" }, { id: "plum", label: "Plum", color: "#8e629c" }],
     preview: { backgroundColor: "#f2f4ff", foregroundColor: "#242947", accentColor: "#5969d8" },
   },
   {
@@ -130,6 +156,7 @@ const launchThemeDefinitions = [
     name: "Rustic",
     description: "Palet bumi dan detail sederhana untuk suasana perayaan yang akrab.",
     defaultConfig: { accent: "terracotta", fontPairing: "serif-sans", coverStyle: "framed", sectionStyle: "lined" },
+    accentOptions: [{ id: "terracotta", label: "Terracotta", color: "#be7853" }, { id: "copper", label: "Copper", color: "#c96c49" }, { id: "sand", label: "Sand", color: "#b59e77" }],
     preview: { backgroundColor: "#fbf3e9", foregroundColor: "#553a2b", accentColor: "#be7853" },
   },
   {
@@ -138,6 +165,7 @@ const launchThemeDefinitions = [
     name: "Elegan",
     description: "Kesan formal yang lembut dengan tipografi berkarakter dan aksen mewah.",
     defaultConfig: { accent: "plum", fontPairing: "display-sans", coverStyle: "editorial", sectionStyle: "lined" },
+    accentOptions: [{ id: "plum", label: "Plum", color: "#8e629c" }, { id: "rose", label: "Rose", color: "#bd7185" }, { id: "ink", label: "Ink", color: "#5e5e5a" }],
     preview: { backgroundColor: "#f8f4fa", foregroundColor: "#38253d", accentColor: "#8e629c" },
   },
   {
@@ -146,6 +174,7 @@ const launchThemeDefinitions = [
     name: "Floral",
     description: "Ceria dan romantis dengan warna lembut untuk kisah yang penuh bunga.",
     defaultConfig: { accent: "blush", fontPairing: "script-sans", coverStyle: "full-bleed", sectionStyle: "soft" },
+    accentOptions: [{ id: "blush", label: "Blush", color: "#df86a8" }, { id: "rose", label: "Rose", color: "#bd7185" }, { id: "plum", label: "Plum", color: "#8e629c" }],
     preview: { backgroundColor: "#fff4f8", foregroundColor: "#552b43", accentColor: "#df86a8" },
   },
   {
@@ -154,6 +183,7 @@ const launchThemeDefinitions = [
     name: "Senja",
     description: "Hangat seperti cahaya sore, dengan karakter santai dan penuh keakraban.",
     defaultConfig: { accent: "copper", fontPairing: "serif-sans", coverStyle: "framed", sectionStyle: "panelled" },
+    accentOptions: [{ id: "copper", label: "Copper", color: "#c96c49" }, { id: "terracotta", label: "Terracotta", color: "#be7853" }, { id: "sand", label: "Sand", color: "#b59e77" }],
     preview: { backgroundColor: "#fff1e7", foregroundColor: "#5a3025", accentColor: "#c96c49" },
   },
   {
@@ -162,6 +192,7 @@ const launchThemeDefinitions = [
     name: "Samudra",
     description: "Teduh dan lapang dengan warna biru yang memberi rasa damai.",
     defaultConfig: { accent: "ocean", fontPairing: "sans-serif", coverStyle: "full-bleed", sectionStyle: "airy" },
+    accentOptions: [{ id: "ocean", label: "Ocean", color: "#4c9eb0" }, { id: "sage", label: "Sage", color: "#6d956d" }, { id: "indigo", label: "Indigo", color: "#5969d8" }],
     preview: { backgroundColor: "#eff8fa", foregroundColor: "#234451", accentColor: "#4c9eb0" },
   },
   {
@@ -170,6 +201,7 @@ const launchThemeDefinitions = [
     name: "Monokrom",
     description: "Modern, fokus, dan tak lekang oleh waktu dengan permainan hitam-putih.",
     defaultConfig: { accent: "ink", fontPairing: "display-sans", coverStyle: "editorial", sectionStyle: "lined" },
+    accentOptions: [{ id: "ink", label: "Ink", color: "#5e5e5a" }, { id: "indigo", label: "Indigo", color: "#5969d8" }, { id: "sand", label: "Sand", color: "#b59e77" }],
     preview: { backgroundColor: "#f4f4f2", foregroundColor: "#222222", accentColor: "#5e5e5a" },
   },
 ] as const;
@@ -190,6 +222,7 @@ export const THEME_REGISTRY: readonly ThemeDefinition[] = Object.freeze(
 
 /** Alias that makes the launch scope explicit at call sites. */
 export const LAUNCH_THEMES = THEME_REGISTRY;
+export { COVER_STYLE_OPTIONS, FONT_PAIRING_OPTIONS } from "./options";
 
 const themesById = new Map(THEME_REGISTRY.map((theme) => [theme.id, theme]));
 
@@ -207,6 +240,13 @@ export function getDefaultThemeConfig(themeId: ThemeId): ThemeConfig {
 
 export function parseThemeConfig(value: unknown): ThemeConfig {
   return themeConfigSchema.parse(value);
+}
+
+export function isThemeConfigSupported(
+  theme: ThemeDefinition,
+  config: ThemeConfig,
+): boolean {
+  return theme.accentOptions.some(({ id }) => id === config.accent);
 }
 
 export interface ResolvedThemePresentation {
@@ -228,7 +268,7 @@ export function resolveThemeForRender(
   const definition = getThemeDefinition(themeId, themeVersion);
   const parsedConfig = definition ? themeConfigSchema.safeParse(themeConfig) : null;
 
-  if (definition && parsedConfig?.success) {
+  if (definition && parsedConfig?.success && isThemeConfigSupported(definition, parsedConfig.data)) {
     return { definition, config: parsedConfig.data, usedFallback: false };
   }
 
@@ -255,8 +295,13 @@ export function resolveThemeSelection(input: ThemeSelectionInput): {
 } {
   const theme = getThemeDefinition(input.themeId);
   if (!theme) throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
+  const themeConfig = input.themeConfig ?? theme.defaultConfig;
 
-  return { theme, themeConfig: input.themeConfig ?? theme.defaultConfig };
+  if (!isThemeConfigSupported(theme, themeConfig)) {
+    throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
+  }
+
+  return { theme, themeConfig };
 }
 
 export function canUseTheme(

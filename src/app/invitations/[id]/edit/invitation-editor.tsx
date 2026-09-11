@@ -1,13 +1,41 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { InvitationThemeView } from "@/components/invitations/invitation-theme-view";
 import { ThemeErrorBoundary } from "@/components/invitations/theme-error-boundary";
-import { Alert, Badge, Button, Card, CardContent, CardHeader, Field, FieldHint, FieldLabel, Input, Textarea, TextLink } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Checkbox,
+  Field,
+  FieldHint,
+  FieldLabel,
+  Input,
+  Select,
+  Textarea,
+  TextLink,
+} from "@/components/ui";
 import type { CommercialState, PublicationState } from "@/generated/prisma/client";
-import type { InvitationContent, InvitationRenderData } from "@/modules/invitations";
-import type { ResolvedThemePresentation } from "@/modules/themes";
+import {
+  INVITATION_CORE_SECTION_IDS,
+  INVITATION_SECTION_OPTIONS,
+  normalizeInvitationSectionOrder,
+  type InvitationContent,
+  type InvitationSectionId,
+  type InvitationSectionOption,
+} from "@/modules/invitations/content";
+import type { InvitationRenderData } from "@/modules/invitations/render-data";
+import {
+  type ResolvedThemePresentation,
+  type ThemeConfig,
+} from "@/modules/themes";
+import { COVER_STYLE_OPTIONS, FONT_PAIRING_OPTIONS } from "@/modules/themes/options";
 
 import { saveInvitationContentAction } from "./actions";
 
@@ -28,6 +56,10 @@ interface InvitationEditorProps {
 }
 
 function sameContent(left: InvitationContent, right: InvitationContent): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameThemeConfig(left: ThemeConfig, right: ThemeConfig): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -52,21 +84,121 @@ function commercialLabel(state: CommercialState): string {
   return state === "TRIAL" ? "Trial" : state === "PAID_ACTIVE" ? "Paid" : state === "GRACE" ? "Grace" : "Tidak aktif";
 }
 
-export function InvitationEditor({
-  invitationId,
-  invitationTitle,
-  initialContent,
-  initialVersion,
-  preview,
-  theme,
-  publicationState,
-  commercialState,
-  canEdit,
-}: InvitationEditorProps) {
+function defaultEditorSectionOrder(content: InvitationContent): InvitationSectionId[] {
+  if (content.sectionOrder) return normalizeInvitationSectionOrder(content.sectionOrder);
+
+  const order: InvitationSectionId[] = [...INVITATION_CORE_SECTION_IDS];
+  if (content.optional.opening || content.optional.closing || content.optional.quoteOrPrayer) {
+    order.push("opening_closing");
+  }
+  if (content.optional.loveStory) order.push("love_story");
+  // WF-06 enables RSVP by default; domain-owned RSVP content can refine this later.
+  order.push("rsvp");
+  return order;
+}
+
+interface SectionRowProps {
+  readonly option: InvitationSectionOption;
+  readonly enabled: boolean;
+  readonly canEdit: boolean;
+  readonly position: number;
+  readonly activeCount: number;
+  readonly onToggle: (sectionId: InvitationSectionId, enabled: boolean) => void;
+  readonly onMove: (sectionId: InvitationSectionId, direction: -1 | 1) => void;
+}
+
+function SectionRow({ option, enabled, canEdit, position, activeCount, onToggle, onMove }: SectionRowProps) {
+  const isCore = !option.optional;
+  return (
+    <li className={`invitation-editor-section-row${enabled ? " invitation-editor-section-row-enabled" : ""}`} data-section-id={option.id}>
+      <div className="invitation-editor-section-row-main">
+        {isCore ? (
+          <span aria-hidden="true" className="invitation-editor-section-grip">⋮⋮</span>
+        ) : (
+          <Checkbox
+            aria-label={`Aktifkan ${option.label}`}
+            checked={enabled}
+            disabled={!canEdit}
+            label=""
+            onChange={(event) => onToggle(option.id, event.target.checked)}
+          />
+        )}
+        <span className="invitation-editor-section-copy">
+          <strong>{option.label}</strong>
+          <span>{option.description}</span>
+        </span>
+        {!isCore && <Badge tone={enabled ? "success" : "neutral"}>{enabled ? "On" : "Off"}</Badge>}
+      </div>
+      <div className="invitation-editor-section-move-actions">
+        <Button aria-label={`Naikkan ${option.label}`} disabled={!canEdit || !enabled || isCore || position <= 0} onClick={() => onMove(option.id, -1)} size="sm" variant="ghost">↑</Button>
+        <Button aria-label={`Turunkan ${option.label}`} disabled={!canEdit || !enabled || isCore || position >= activeCount - 1} onClick={() => onMove(option.id, 1)} size="sm" variant="ghost">↓</Button>
+      </div>
+    </li>
+  );
+}
+
+interface AppearanceControlsProps {
+  readonly theme: ResolvedThemePresentation;
+  readonly themeConfig: ThemeConfig;
+  readonly canEdit: boolean;
+  readonly onChange: (config: ThemeConfig) => void;
+}
+
+function AppearanceControls({ theme, themeConfig, canEdit, onChange }: AppearanceControlsProps) {
+  return (
+    <section aria-labelledby="appearance-heading" className="invitation-editor-appearance">
+      <div className="invitation-editor-section-heading">
+        <div>
+          <h3 id="appearance-heading">Appearance</h3>
+          <p className="invitation-editor-control-description">Pilihan terkurasi dari tema {theme.definition.name}.</p>
+        </div>
+      </div>
+      <Field>
+        <FieldLabel>Aksen warna</FieldLabel>
+        <div aria-label="Pilihan aksen warna" className="invitation-editor-accent-options" role="group">
+          {theme.definition.accentOptions.map((accent) => (
+            <Button
+              aria-label={`Aksen ${accent.label}`}
+              aria-pressed={themeConfig.accent === accent.id}
+              className="invitation-editor-accent-option"
+              disabled={!canEdit}
+              key={accent.id}
+              onClick={() => onChange({ ...themeConfig, accent: accent.id })}
+              style={{ "--editor-accent-option": accent.color } as CSSProperties}
+              title={accent.label}
+              variant={themeConfig.accent === accent.id ? "primary" : "secondary"}
+            >
+              <span aria-hidden="true" className="invitation-editor-accent-swatch" />
+              {accent.label}
+            </Button>
+          ))}
+        </div>
+        <FieldHint>Aksen yang tersedia mengikuti tema dan tidak mengubah isi undangan.</FieldHint>
+      </Field>
+      <Field>
+        <FieldLabel>Pasangan font</FieldLabel>
+        <Select aria-label="Pasangan font" disabled={!canEdit} id="font-pairing" onChange={(event) => onChange({ ...themeConfig, fontPairing: event.target.value as ThemeConfig["fontPairing"] })} value={themeConfig.fontPairing}>
+          {FONT_PAIRING_OPTIONS.map((font) => <option key={font.id} value={font.id}>{font.label} — {font.description}</option>)}
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel>Cover</FieldLabel>
+        <Select aria-label="Cover" disabled={!canEdit} id="cover-style" onChange={(event) => onChange({ ...themeConfig, coverStyle: event.target.value as ThemeConfig["coverStyle"] })} value={themeConfig.coverStyle}>
+          {COVER_STYLE_OPTIONS.map((cover) => <option key={cover.id} value={cover.id}>{cover.label} — {cover.description}</option>)}
+        </Select>
+        <FieldHint>Pilih komposisi cover yang paling sesuai dengan tema Anda.</FieldHint>
+      </Field>
+    </section>
+  );
+}
+
+export function InvitationEditor({ invitationId, invitationTitle, initialContent, initialVersion, preview, theme, publicationState, commercialState, canEdit }: InvitationEditorProps) {
   const [draft, setDraft] = useState<InvitationContent>(initialContent);
+  const [themeConfig, setThemeConfig] = useState<ThemeConfig>(theme.config);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const draftRef = useRef(draft);
+  const themeConfigRef = useRef(themeConfig);
   const versionRef = useRef(initialVersion);
   const revisionRef = useRef(0);
   const dirtyRef = useRef(false);
@@ -82,6 +214,7 @@ export function InvitationEditor({
     }
 
     const snapshot = draftRef.current;
+    const snapshotThemeConfig = themeConfigRef.current;
     const revision = revisionRef.current;
     const expectedVersion = versionRef.current;
     inFlightRef.current = true;
@@ -90,10 +223,10 @@ export function InvitationEditor({
     setErrorMessage(null);
 
     try {
-      const result = await saveInvitationContentAction(invitationId, expectedVersion, snapshot);
+      const result = await saveInvitationContentAction(invitationId, expectedVersion, snapshot, snapshotThemeConfig);
       if (result.ok && result.version !== undefined) {
         versionRef.current = result.version;
-        if (revisionRef.current === revision && sameContent(draftRef.current, snapshot)) {
+        if (revisionRef.current === revision && sameContent(draftRef.current, snapshot) && sameThemeConfig(themeConfigRef.current, snapshotThemeConfig)) {
           dirtyRef.current = false;
           setSaveState("saved");
         } else {
@@ -119,42 +252,60 @@ export function InvitationEditor({
     }
   }, [canEdit, invitationId]);
 
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
-
-  useEffect(() => {
-    flushLatestRef.current = flushLatest;
-  }, [flushLatest]);
-
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+  useEffect(() => { themeConfigRef.current = themeConfig; }, [themeConfig]);
+  useEffect(() => { flushLatestRef.current = flushLatest; }, [flushLatest]);
   useEffect(() => {
     if (!canEdit || !dirtyRef.current) return;
     const timer = window.setTimeout(() => void flushLatestRef.current(), AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [canEdit, draft]);
+  }, [canEdit, draft, themeConfig]);
 
-  const livePreview = useMemo(
-    () => ({ ...preview, content: draft }),
-    [draft, preview],
-  );
+  const livePreview = useMemo(() => ({ ...preview, content: draft }), [draft, preview]);
+  const liveTheme = useMemo(() => ({ ...theme, config: themeConfig }), [theme, themeConfig]);
+  const activeSectionOrder = useMemo(() => defaultEditorSectionOrder(draft), [draft]);
+  const activeSectionSet = useMemo(() => new Set(activeSectionOrder), [activeSectionOrder]);
+  const orderedSectionOptions = useMemo(() => [
+    ...INVITATION_SECTION_OPTIONS.filter(({ id }) => activeSectionSet.has(id)),
+    ...INVITATION_SECTION_OPTIONS.filter(({ id }) => !activeSectionSet.has(id)),
+  ], [activeSectionSet]);
 
-  function updateDraft(next: InvitationContent) {
+  function updateEditor(nextContent: InvitationContent, nextThemeConfig = themeConfigRef.current) {
     revisionRef.current += 1;
     dirtyRef.current = true;
+    themeConfigRef.current = nextThemeConfig;
     setSaveState("saving");
     setErrorMessage(null);
-    setDraft(next);
+    setDraft(nextContent);
+    setThemeConfig(nextThemeConfig);
   }
 
   function updateCore(field: "coupleDisplayName1" | "coupleDisplayName2", value: string) {
-    updateDraft({ ...draftRef.current, core: { ...draftRef.current.core, [field]: value } });
+    updateEditor({ ...draftRef.current, core: { ...draftRef.current.core, [field]: value } });
   }
 
   function updateOptional(field: "opening" | "closing", value: string) {
-    updateDraft({
-      ...draftRef.current,
-      optional: { ...draftRef.current.optional, [field]: value || undefined },
-    });
+    updateEditor({ ...draftRef.current, optional: { ...draftRef.current.optional, [field]: value || undefined } });
+  }
+
+  function updateAppearance(nextThemeConfig: ThemeConfig) {
+    updateEditor(draftRef.current, nextThemeConfig);
+  }
+
+  function toggleSection(sectionId: InvitationSectionId, enabled: boolean) {
+    const current = defaultEditorSectionOrder(draftRef.current);
+    const next = enabled ? [...current, ...(current.includes(sectionId) ? [] : [sectionId])] : current.filter((id) => id !== sectionId);
+    updateEditor({ ...draftRef.current, sectionOrder: normalizeInvitationSectionOrder(next) });
+  }
+
+  function moveSection(sectionId: InvitationSectionId, direction: -1 | 1) {
+    const current = defaultEditorSectionOrder(draftRef.current);
+    const index = current.indexOf(sectionId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return;
+    const next = [...current];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    updateEditor({ ...draftRef.current, sectionOrder: normalizeInvitationSectionOrder(next) });
   }
 
   function retrySave() {
@@ -175,103 +326,34 @@ export function InvitationEditor({
       <header className="invitation-editor-header">
         <div className="invitation-editor-heading">
           <TextLink href="/invitations" aria-label="Kembali ke daftar undangan">←</TextLink>
-          <div>
-            <p className="ui-overline">Invitation Editor</p>
-            <h1>{invitationTitle}</h1>
-            <div className="invitation-editor-badges">
-              <Badge tone={commercialState === "TRIAL" || commercialState === "PAID_ACTIVE" ? "info" : "warning"}>{commercialLabel(commercialState)}</Badge>
-              <Badge tone={publicationState === "PUBLISHED" ? "success" : "neutral"}>{publicationLabel(publicationState)}</Badge>
-            </div>
-          </div>
+          <div><p className="ui-overline">Invitation Editor</p><h1>{invitationTitle}</h1><div className="invitation-editor-badges"><Badge tone={commercialState === "TRIAL" || commercialState === "PAID_ACTIVE" ? "info" : "warning"}>{commercialLabel(commercialState)}</Badge><Badge tone={publicationState === "PUBLISHED" ? "success" : "neutral"}>{publicationLabel(publicationState)}</Badge></div></div>
         </div>
-        <div className="invitation-editor-header-actions">
-          <span className={`invitation-editor-save-status invitation-editor-save-status-${statusTone}`} aria-live="polite" role="status">
-            <span aria-hidden="true">{saveState === "saved" ? "✓" : saveState === "saving" ? "•" : "!"}</span> {saveStatusLabel(saveState)}
-          </span>
-          <TextLink className="ui-button ui-button-secondary" href={`/invitations/${invitationId}/preview`}>Preview</TextLink>
-          <TextLink className="ui-button ui-button-primary" href={`/invitations/${invitationId}/publish`}>Publish</TextLink>
-        </div>
+        <div className="invitation-editor-header-actions"><span className={`invitation-editor-save-status invitation-editor-save-status-${statusTone}`} aria-live="polite" role="status"><span aria-hidden="true">{saveState === "saved" ? "✓" : saveState === "saving" ? "•" : "!"}</span> {saveStatusLabel(saveState)}</span><TextLink className="ui-button ui-button-secondary" href={`/invitations/${invitationId}/preview`}>Preview</TextLink><TextLink className="ui-button ui-button-primary" href={`/invitations/${invitationId}/publish`}>Publish</TextLink></div>
       </header>
 
-      {!canEdit && (
-        <Alert className="invitation-editor-lock" tone="warning" title="Editor hanya-baca">
-          Masa aktif undangan ini tidak mengizinkan perubahan. Data tetap aman dan dapat dilihat melalui preview.
-        </Alert>
-      )}
-
-      {saveState === "error" && errorMessage && (
-        <Alert className="invitation-editor-save-alert" tone="danger" title="Gagal menyimpan">
-          <p>{errorMessage}</p>
-          <Button className="invitation-editor-inline-action" onClick={retrySave} size="sm" variant="secondary">Coba lagi</Button>
-        </Alert>
-      )}
-
-      {saveState === "conflict" && (
-        <Alert className="invitation-editor-save-alert" tone="warning" title="Versi undangan berubah di sesi lain">
-          <p>Perubahan lokal Anda belum ditimpa. Muat versi terbaru hanya setelah Anda siap menghapus perubahan lokal ini.</p>
-          <Button className="invitation-editor-inline-action" onClick={reloadLatest} size="sm" variant="secondary">Muat versi terbaru</Button>
-        </Alert>
-      )}
+      {!canEdit && <Alert className="invitation-editor-lock" tone="warning" title="Editor hanya-baca">Masa aktif undangan ini tidak mengizinkan perubahan. Data tetap aman dan dapat dilihat melalui preview.</Alert>}
+      {saveState === "error" && errorMessage && <Alert className="invitation-editor-save-alert" tone="danger" title="Gagal menyimpan"><p>{errorMessage}</p><Button className="invitation-editor-inline-action" onClick={retrySave} size="sm" variant="secondary">Coba lagi</Button></Alert>}
+      {saveState === "conflict" && <Alert className="invitation-editor-save-alert" tone="warning" title="Versi undangan berubah di sesi lain"><p>Perubahan lokal Anda belum ditimpa. Muat versi terbaru hanya setelah Anda siap menghapus perubahan lokal ini.</p><Button className="invitation-editor-inline-action" onClick={reloadLatest} size="sm" variant="secondary">Muat versi terbaru</Button></Alert>}
 
       <div className="invitation-editor-layout">
         <section aria-label="Kontrol editor" className="invitation-editor-controls">
-          <Card>
-            <CardHeader>
-              <p className="ui-overline">Quick Setup</p>
-              <h2 className="ui-card-title">Lengkapi bagian penting</h2>
-              <p className="ui-card-description">Perubahan tersimpan otomatis setelah Anda berhenti mengetik.</p>
-            </CardHeader>
-            <CardContent className="invitation-editor-form">
-              <div className="invitation-editor-section-heading">
-                <h3>Couple</h3>
-                <Badge tone="success">✓</Badge>
-              </div>
-              <Field>
-                <FieldLabel required>Nama tampilan pasangan 1</FieldLabel>
-                <Input aria-label="Nama tampilan pasangan 1" disabled={!canEdit} maxLength={120} onChange={(event) => updateCore("coupleDisplayName1", event.target.value)} value={draft.core.coupleDisplayName1} />
-              </Field>
-              <Field>
-                <FieldLabel required>Nama tampilan pasangan 2</FieldLabel>
-                <Input aria-label="Nama tampilan pasangan 2" disabled={!canEdit} maxLength={120} onChange={(event) => updateCore("coupleDisplayName2", event.target.value)} value={draft.core.coupleDisplayName2} />
-              </Field>
-              <div className="invitation-editor-section-heading invitation-editor-section-heading-spaced">
-                <h3>Opening &amp; Closing</h3>
-              </div>
-              <Field>
-                <FieldLabel>Opening</FieldLabel>
-                <Textarea aria-label="Opening" disabled={!canEdit} maxLength={5000} onChange={(event) => updateOptional("opening", event.target.value)} placeholder="Tulis pembuka undangan…" value={draft.optional.opening ?? ""} />
-                <FieldHint>Pesan pembuka yang tampil sebelum rangkaian acara.</FieldHint>
-              </Field>
-              <Field>
-                <FieldLabel>Closing</FieldLabel>
-                <Textarea aria-label="Closing" disabled={!canEdit} maxLength={5000} onChange={(event) => updateOptional("closing", event.target.value)} placeholder="Tulis penutup undangan…" value={draft.optional.closing ?? ""} />
-                <FieldHint>Pesan penutup untuk tamu.</FieldHint>
-              </Field>
-              <div className="invitation-editor-quick-rows" aria-label="Bagian undangan">
-                <div><span>Events</span><Badge tone="warning">! Lengkapi berikutnya</Badge></div>
-                <div><span>Appearance</span><TextLink href={`/invitations/${invitationId}/themes`}>Atur tema →</TextLink></div>
-                <div><span>Sharing &amp; Privacy</span><TextLink href={`/invitations/${invitationId}/settings`}>Kelola →</TextLink></div>
-              </div>
-            </CardContent>
-          </Card>
+          <Card><CardHeader><p className="ui-overline">Quick Setup</p><h2 className="ui-card-title">Lengkapi bagian penting</h2><p className="ui-card-description">Perubahan tersimpan otomatis setelah Anda berhenti mengetik.</p></CardHeader><CardContent className="invitation-editor-form">
+            <div className="invitation-editor-section-heading"><h3>Couple</h3><Badge tone="success">✓</Badge></div>
+            <Field><FieldLabel required>Nama tampilan pasangan 1</FieldLabel><Input aria-label="Nama tampilan pasangan 1" disabled={!canEdit} maxLength={120} onChange={(event) => updateCore("coupleDisplayName1", event.target.value)} value={draft.core.coupleDisplayName1} /></Field>
+            <Field><FieldLabel required>Nama tampilan pasangan 2</FieldLabel><Input aria-label="Nama tampilan pasangan 2" disabled={!canEdit} maxLength={120} onChange={(event) => updateCore("coupleDisplayName2", event.target.value)} value={draft.core.coupleDisplayName2} /></Field>
+            <div className="invitation-editor-section-heading invitation-editor-section-heading-spaced"><div><h3>Bagian undangan</h3><p className="invitation-editor-control-description">Nyalakan bagian opsional dan atur urutannya.</p></div></div>
+            <ol aria-label="Urutan bagian undangan" className="invitation-editor-section-list">{orderedSectionOptions.map((option) => <SectionRow activeCount={activeSectionOrder.length} canEdit={canEdit} enabled={activeSectionSet.has(option.id)} key={option.id} onMove={moveSection} onToggle={toggleSection} option={option} position={activeSectionOrder.indexOf(option.id)} />)}</ol>
+            <FieldHint>Couple dan Events selalu tersedia. Bagian yang belum memiliki data akan tampil setelah fiturnya diisi.</FieldHint>
+            <div className="invitation-editor-section-heading invitation-editor-section-heading-spaced"><h3>Opening &amp; Closing</h3></div>
+            <Field><FieldLabel>Opening</FieldLabel><Textarea aria-label="Opening" disabled={!canEdit} maxLength={5000} onChange={(event) => updateOptional("opening", event.target.value)} placeholder="Tulis pembuka undangan…" value={draft.optional.opening ?? ""} /><FieldHint>Pesan pembuka yang tampil sebelum rangkaian acara.</FieldHint></Field>
+            <Field><FieldLabel>Closing</FieldLabel><Textarea aria-label="Closing" disabled={!canEdit} maxLength={5000} onChange={(event) => updateOptional("closing", event.target.value)} placeholder="Tulis penutup undangan…" value={draft.optional.closing ?? ""} /><FieldHint>Pesan penutup untuk tamu.</FieldHint></Field>
+            <AppearanceControls canEdit={canEdit} onChange={updateAppearance} theme={theme} themeConfig={themeConfig} />
+            <div className="invitation-editor-quick-rows" aria-label="Bagian pengaturan lain"><div><span>Events</span><Badge tone="warning">! Lengkapi berikutnya</Badge></div><div><span>Sharing &amp; Privacy</span><TextLink href={`/invitations/${invitationId}/settings`}>Kelola →</TextLink></div></div>
+          </CardContent></Card>
         </section>
-        <aside aria-label="Live invitation preview" className="invitation-editor-preview-pane">
-          <div className="invitation-editor-preview-heading">
-            <div><p className="ui-overline">Live Preview</p><h2>Undangan Anda</h2></div>
-            <Badge tone="warning">Owner preview</Badge>
-          </div>
-          <div className="invitation-editor-preview-viewport">
-            <ThemeErrorBoundary themeName={theme.definition.name}>
-              <InvitationThemeView invitation={livePreview} theme={theme} />
-            </ThemeErrorBoundary>
-          </div>
-        </aside>
+        <aside aria-label="Live invitation preview" className="invitation-editor-preview-pane"><div className="invitation-editor-preview-heading"><div><p className="ui-overline">Live Preview</p><h2>Undangan Anda</h2></div><Badge tone="warning">Owner preview</Badge></div><div className="invitation-editor-preview-viewport"><ThemeErrorBoundary themeName={theme.definition.name}><InvitationThemeView invitation={livePreview} theme={liveTheme} /></ThemeErrorBoundary></div></aside>
       </div>
-
-      <nav aria-label="Aksi editor" className="invitation-editor-sticky-actions">
-        <TextLink className="ui-button ui-button-secondary" href={`/invitations/${invitationId}/preview`}>Preview</TextLink>
-        <TextLink className="ui-button ui-button-primary" href={`/invitations/${invitationId}/publish`}>Publish</TextLink>
-      </nav>
+      <nav aria-label="Aksi editor" className="invitation-editor-sticky-actions"><TextLink className="ui-button ui-button-secondary" href={`/invitations/${invitationId}/preview`}>Preview</TextLink><TextLink className="ui-button ui-button-primary" href={`/invitations/${invitationId}/publish`}>Publish</TextLink></nav>
     </main>
   );
 }

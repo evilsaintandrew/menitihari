@@ -3,6 +3,7 @@ import { writeAuditEvent } from "@/modules/audit";
 import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
 import { getInvitationLifecycleCapabilities, isCommerciallyEditable } from "@/modules/lifecycle";
+import { getThemeDefinition, isThemeConfigSupported, themeConfigSchema } from "@/modules/themes";
 import { z } from "zod";
 
 import { ownerMembershipWhere } from "./authorization";
@@ -16,6 +17,7 @@ export const saveInvitationContentInputSchema = z
   .object({
     expectedVersion: z.number().int().positive(),
     content: invitationContentSchema,
+    themeConfig: themeConfigSchema.optional(),
   })
   .strict();
 
@@ -55,6 +57,9 @@ const editorSnapshotSelect = {
   commercialState: true,
   trialEndsAt: true,
   activeUntil: true,
+  themeId: true,
+  themeVersion: true,
+  themeConfig: true,
 } satisfies Prisma.InvitationSelect;
 
 type EditorSnapshotRecord = NonNullable<Prisma.Result<
@@ -143,6 +148,13 @@ export async function saveInvitationContent(
       throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
     }
 
+    const theme = getThemeDefinition(invitation.themeId, invitation.themeVersion);
+    const persistedThemeConfig = themeConfigSchema.safeParse(invitation.themeConfig);
+    const themeConfig = parsed.themeConfig ?? (persistedThemeConfig.success ? persistedThemeConfig.data : null);
+    if (!theme || !themeConfig || !isThemeConfigSupported(theme, themeConfig)) {
+      throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
+    }
+
     const updated = await transaction.invitation.updateMany({
       where: {
         id: invitationId,
@@ -156,6 +168,7 @@ export async function saveInvitationContent(
         language: parsed.content.language,
         fullNames: nullableJson(parsed.content.optional.fullNames),
         parentFields: nullableJson(parsed.content.optional.parentFields),
+        themeConfig: themeConfig as Prisma.InputJsonValue,
         version: { increment: 1 },
       },
     });
