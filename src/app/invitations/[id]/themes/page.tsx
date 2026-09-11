@@ -42,6 +42,7 @@ export default async function InvitationThemeHandoffPage({
           themes={THEME_REGISTRY}
         />
         <div className="invitation-theme-back-link">
+          <TextLink href={`/invitations/${id}/edit`}>Buka editor undangan</TextLink>
           <TextLink href={`/invitations/${id}/settings`}>Atur alamat link publik</TextLink>
           <TextLink href="/invitations">Kembali ke daftar undangan</TextLink>
         </div>
