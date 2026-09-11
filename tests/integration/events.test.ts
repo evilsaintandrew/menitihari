@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { EventVisibility, PrismaClient } from "@/generated/prisma/client";
 import { createInvitation } from "@/modules/invitations";
 import { cancelEvent, MAX_EVENTS_PER_INVITATION, removeEvent, saveEvent, setPrimaryEvent } from "@/modules/events";
+import { saveGuest } from "@/modules/guests";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -36,7 +37,12 @@ describe("event CRUD PostgreSQL integration", () => {
     const created = await createInvitation(testPrisma!, owner.id, { coupleDisplayName1: "Alya", coupleDisplayName2: "Bima", mainEventDate: "2026-12-20" });
     try {
       const first = await saveEvent(testPrisma!, owner.id, created.id, null, { ...eventInput(1), isPrimary: true });
+      const firstEventGuest = await saveGuest(testPrisma!, owner.id, created.id, null, {
+        displayName: "Keluarga Santoso",
+        assignments: [{ eventId: first.eventId, maxPartySize: 4 }],
+      });
       const second = await saveEvent(testPrisma!, owner.id, created.id, null, eventInput(2));
+      await expect(testPrisma!.guestEvent.count({ where: { guestId: firstEventGuest.guestId, eventId: second.eventId } })).resolves.toBe(0);
       await saveEvent(testPrisma!, owner.id, created.id, null, eventInput(3));
       await saveEvent(testPrisma!, owner.id, created.id, null, eventInput(4));
 

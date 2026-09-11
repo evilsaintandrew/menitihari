@@ -28,12 +28,17 @@ function optionalFormValue(formData: FormData, key: string): string | undefined 
 }
 
 function parseGuestForm(formData: FormData) {
+  const eventIds = formData.getAll("eventIds").filter((value): value is string => typeof value === "string");
   return guestInputSchema.safeParse({
     displayName: stringValue(formData, "displayName"),
     phone: optionalFormValue(formData, "phone"),
     groupId: optionalFormValue(formData, "groupId"),
     groupName: optionalFormValue(formData, "groupName"),
     notes: optionalFormValue(formData, "notes"),
+    assignments: eventIds.map((eventId) => ({
+      eventId,
+      maxPartySize: Number(stringValue(formData, `maxPartySize:${eventId}`)),
+    })),
   });
 }
 

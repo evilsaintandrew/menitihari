@@ -29,6 +29,7 @@ function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData
     activeUntil: null,
     canEdit: true,
     groups: [{ id: "group-family", name: "Keluarga" }],
+    events: [{ id: "event-1", name: "Resepsi" }],
     guests: [{
       id: "guest-1",
       displayName: "Keluarga Santoso",
@@ -52,6 +53,8 @@ describe("GuestsManager", () => {
     expect(screen.getByLabelText(/Nama tamu \/ penerima/)).toBeTruthy();
     expect(screen.getByLabelText(/Nomor WhatsApp/)).toBeTruthy();
     expect(screen.getByLabelText("Grup (opsional)")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Resepsi" }));
+    expect(screen.getByLabelText("Maksimal orang untuk Resepsi")).toHaveProperty("value", "1");
     expect(screen.getByRole("button", { name: "Simpan tamu" })).toBeTruthy();
   });
 
