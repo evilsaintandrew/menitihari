@@ -1,0 +1,78 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { CommercialState } from "@/generated/prisma/client";
+import type { GuestManagementData } from "@/modules/guests";
+
+vi.mock("@/app/invitations/[id]/guests/actions", () => ({
+  saveGuestAction: async () => ({ ok: true }),
+  archiveGuestAction: async () => ({ ok: true }),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+import { GuestsManager } from "@/app/invitations/[id]/guests/guests-manager";
+
+afterEach(() => {
+  cleanup();
+});
+
+function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData {
+  return {
+    invitationId: "invitation-1",
+    invitationVersion: 2,
+    commercialState: CommercialState.TRIAL,
+    trialEndsAt: "2026-09-13T08:30:00.000Z",
+    activeUntil: null,
+    canEdit: true,
+    groups: [{ id: "group-family", name: "Keluarga" }],
+    guests: [{
+      id: "guest-1",
+      displayName: "Keluarga Santoso",
+      displayPhone: "0812 3456 7890",
+      normalizedPhone: "+6281234567890",
+      notes: null,
+      group: { id: "group-family", name: "Keluarga" },
+      assignedEvents: [],
+      createdAt: "2026-09-11T08:30:00.000Z",
+    }],
+    ...overrides,
+  };
+}
+
+describe("GuestsManager", () => {
+  it("shows the add-guest form and clear owner-facing fields", () => {
+    render(<GuestsManager data={data({ guests: [] })} />);
+
+    expect(screen.getByRole("heading", { name: "Tamu undangan" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Tambah tamu" })).toBeTruthy();
+    expect(screen.getByLabelText(/Nama tamu \/ penerima/)).toBeTruthy();
+    expect(screen.getByLabelText(/Nomor WhatsApp/)).toBeTruthy();
+    expect(screen.getByLabelText("Grup (opsional)")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Simpan tamu" })).toBeTruthy();
+  });
+
+  it("filters guest cards by name, phone, or group", () => {
+    render(<GuestsManager data={data({ guests: [
+      data().guests[0],
+      { ...data().guests[0], id: "guest-2", displayName: "Rina", displayPhone: null, group: null },
+    ] })} />);
+
+    expect(screen.getByRole("heading", { name: "Keluarga Santoso" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Rina" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Cari tamu" }), { target: { value: "rina" } });
+    expect(screen.queryByRole("heading", { name: "Keluarga Santoso" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Rina" })).toBeTruthy();
+  });
+
+  it("keeps editing and archive actions disabled for read-only lifecycle states", () => {
+    render(<GuestsManager data={data({ canEdit: false, commercialState: CommercialState.GRACE })} />);
+
+    expect(screen.getByRole("button", { name: "Edit" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Hapus" })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Daftar tamu hanya-baca")).toBeTruthy();
+  });
+});
