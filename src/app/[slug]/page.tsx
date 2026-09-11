@@ -1,8 +1,12 @@
 import { notFound, permanentRedirect } from "next/navigation";
 
-import { Card, CardContent, CardHeader } from "@/components/ui";
-import { isPublicInvitationAvailable } from "@/modules/lifecycle";
-import { resolveInvitationSlug, isInvitationSlugPathSegment } from "@/modules/invitations";
+import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
+import { Card, CardHeader } from "@/components/ui";
+import {
+  getPublicInvitationPageData,
+  resolveInvitationSlug,
+  isInvitationSlugPathSegment,
+} from "@/modules/invitations";
 import { prisma } from "@/server/db";
 
 export default async function PublicInvitationPage({
@@ -17,42 +21,21 @@ export default async function PublicInvitationPage({
   if (!resolution) notFound();
   if (!resolution.isCanonical) permanentRedirect(`/${resolution.canonicalSlug}`);
 
-  const invitation = await prisma.invitation.findUnique({
-    where: { id: resolution.invitationId },
-    select: {
-      coupleDisplayName1: true,
-      coupleDisplayName2: true,
-      publicationState: true,
-      commercialState: true,
-      trialEndsAt: true,
-      activeUntil: true,
-      genericAccessEnabled: true,
-      primaryEvent: { select: { startsAt: true } },
-    },
-  });
-
-  if (!invitation) notFound();
-
-  const available = isPublicInvitationAvailable(invitation);
+  const pageData = await getPublicInvitationPageData(prisma, resolution.invitationId);
+  if (!pageData) notFound();
 
   return (
     <main className="public-invitation-page">
-      <Card>
-        <CardHeader>
-          <p className="ui-overline">Menitihari</p>
-          <h1 className="auth-title">
-            {available
-              ? `${invitation.coupleDisplayName1} & ${invitation.coupleDisplayName2}`
-              : "Undangan ini sudah tidak tersedia"}
-          </h1>
-        </CardHeader>
-        {available && invitation.primaryEvent && (
-          <CardContent>
-            <p>Acara utama</p>
-            <p>{invitation.primaryEvent.startsAt.toLocaleDateString("id-ID")}</p>
-          </CardContent>
-        )}
-      </Card>
+      {pageData.available && pageData.renderData ? (
+        <InvitationRenderer invitation={pageData.renderData} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <p className="ui-overline">Menitihari</p>
+            <h1 className="auth-title">Undangan ini sudah tidak tersedia</h1>
+          </CardHeader>
+        </Card>
+      )}
     </main>
   );
 }
