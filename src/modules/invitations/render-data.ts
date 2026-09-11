@@ -12,6 +12,7 @@ import {
   INVITATION_LANGUAGES,
   type InvitationContent,
 } from "./content";
+import { eventContactSchema, type EventContact } from "@/modules/events";
 import { ownerMembershipWhere } from "./authorization";
 
 const invitationRenderSelect = {
@@ -57,6 +58,7 @@ const invitationRenderSelect = {
       locationNote: true,
       livestreamUrl: true,
       dressCode: true,
+      contactFields: true,
       cancelledAt: true,
       archivedAt: true,
     },
@@ -83,6 +85,7 @@ export interface InvitationRenderEvent {
   readonly locationNote: string | null;
   readonly livestreamUrl: string | null;
   readonly dressCode: string | null;
+  readonly contact: EventContact | null;
 }
 
 export interface InvitationRenderData {
@@ -191,6 +194,9 @@ export function buildInvitationRenderData(
       locationNote: event.locationNote,
       livestreamUrl: event.livestreamUrl,
       dressCode: event.dressCode,
+      contact: eventContactSchema.safeParse(event.contactFields).success
+        ? eventContactSchema.parse(event.contactFields)
+        : null,
     }));
 
   return {

@@ -11,6 +11,7 @@ import { ERROR_CODES } from "@/modules/errors/codes";
 import { z } from "zod";
 import { getDefaultThemeConfig } from "@/modules/themes";
 import { ownerMembershipWhere } from "./authorization";
+import { DEFAULT_INVITATION_TIMEZONE } from "./timezone";
 import {
   INVITATION_SLUG_MAX_LENGTH,
   isUniqueConstraintError,
@@ -25,6 +26,7 @@ export * from "./content";
 export * from "./editor";
 export * from "./render-data";
 export * from "./share-metadata";
+export { DEFAULT_INVITATION_TIMEZONE } from "./timezone";
 export { publicInvitationCacheTag } from "./public-cache";
 export { ownerMembershipWhere } from "./authorization";
 
@@ -33,7 +35,6 @@ export const INVITATION_TRIAL_DURATION_MS = INVITATION_TRIAL_DAYS * 24 * 60 * 60
 export const LAUNCH_PRICE_AMOUNT = 79_000;
 export const LAUNCH_PRICE_CURRENCY = "IDR";
 export const DEFAULT_INVITATION_LANGUAGE = "id";
-export const DEFAULT_INVITATION_TIMEZONE = "Asia/Jakarta";
 export const DEFAULT_INVITATION_THEME_ID = "classic";
 export const DEFAULT_INVITATION_THEME_VERSION = "1";
 export const DEFAULT_PRIMARY_EVENT_NAME = "Acara Utama";
