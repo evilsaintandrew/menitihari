@@ -113,6 +113,12 @@ Rules:
 -   platform can suspend public content;
 -   suspension does not immediately destroy evidence/data.
 
+WhatsApp trial entitlement usage stores only a deterministic contact digest,
+not another copy of the guest phone number. The claim is performed inside the
+same transaction as the owner WhatsApp-open mutation, under an invitation-row
+lock and a database uniqueness constraint. Contact digests and phone numbers
+must not be copied into logs, analytics, audit metadata, or client responses.
+
 ## Audit
 
 Audit security-sensitive actions only, including:

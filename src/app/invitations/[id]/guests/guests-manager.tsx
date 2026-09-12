@@ -74,6 +74,7 @@ function OpenWhatsAppAction({
 }) {
   const [state, action, pending] = useActionState<WhatsAppOpenActionState, FormData>(openWhatsAppAction, { ok: false });
   const opened = state.opened;
+  const capReached = state.errorCode === "CAPACITY_EXCEEDED";
 
   useEffect(() => {
     if (opened?.whatsappUrl) window.location.assign(opened.whatsappUrl);
@@ -89,7 +90,7 @@ function OpenWhatsAppAction({
           {pending ? "Membuka WhatsApp…" : "Buka WhatsApp"}
         </Button>
       </form>
-      {state.message && !state.ok && <Alert role="alert" tone="danger" title="WhatsApp belum dibuka">{state.message}</Alert>}
+      {state.message && !state.ok && <Alert role="alert" tone="danger" title={capReached ? "Batas WhatsApp trial tercapai" : "WhatsApp belum dibuka"}>{state.message}</Alert>}
     </div>
   );
 }
@@ -722,6 +723,21 @@ export function GuestsManager({ data }: { readonly data: GuestManagementData }) 
           </p>
         )}
       </section>
+      {data.whatsappTrialContactUsage && (
+        <section aria-label="Penggunaan WhatsApp trial" className="guests-capacity-card">
+          <div className="guests-capacity-heading">
+            <div>
+              <p className="ui-overline">Distribusi WhatsApp</p>
+              <h2>{data.whatsappTrialContactUsage.used} / {data.whatsappTrialContactUsage.limit} kontak WhatsApp digunakan</h2>
+            </div>
+            <Badge tone={data.whatsappTrialContactUsage.remaining === 0 ? "danger" : "info"}>
+              {data.whatsappTrialContactUsage.remaining === 0 ? "Batas tercapai" : `Sisa ${data.whatsappTrialContactUsage.remaining}`}
+            </Badge>
+          </div>
+          <Progress label="Kontak WhatsApp trial" value={Math.round((data.whatsappTrialContactUsage.used / data.whatsappTrialContactUsage.limit) * 1000) / 10} />
+          <p className="ui-muted" role="status">Kontak yang sama tidak dihitung lagi. Setelah batas tercapai, aktifkan undangan untuk melanjutkan Open WhatsApp; tautan personal tetap dapat digunakan.</p>
+        </section>
+      )}
       {data.events.length > 0 && <section aria-label="Kontrol RSVP" className="guests-rsvp-controls">{data.events.map((event) => <RsvpControlCard canEdit={data.canEdit} event={event} invitationId={data.invitationId} key={event.id} />)}</section>}
       <section aria-label="Kontrol tamu" className="guests-toolbar">
         <Input aria-label="Cari tamu" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor, atau grup…" type="search" value={query} />

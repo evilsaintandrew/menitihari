@@ -47,6 +47,11 @@ function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData
     commercialState: CommercialState.TRIAL,
     trialEndsAt: "2026-09-13T08:30:00.000Z",
     activeUntil: null,
+    whatsappTrialContactUsage: {
+      used: 0,
+      limit: 30,
+      remaining: 30,
+    },
     canEdit: true,
     invitedPeopleCapacity: {
       used: 3,
@@ -150,6 +155,15 @@ describe("GuestsManager", () => {
 
     expect(screen.getByRole("heading", { name: "450 / 500 orang diundang" })).toBeTruthy();
     expect(screen.getByText("Kapasitas tamu hampir penuh. Sisa 50 orang.")).toBeTruthy();
+  });
+
+  it("shows the shared trial WhatsApp contact usage and repeat-contact rule", () => {
+    render(<GuestsManager data={data({
+      whatsappTrialContactUsage: { used: 12, limit: 30, remaining: 18 },
+    })} />);
+
+    expect(screen.getByRole("heading", { name: "12 / 30 kontak WhatsApp digunakan" })).toBeTruthy();
+    expect(screen.getByText("Kontak yang sama tidak dihitung lagi.", { exact: false })).toBeTruthy();
   });
 
   it("shows distribution state and exposes compact bulk actions after selection", () => {

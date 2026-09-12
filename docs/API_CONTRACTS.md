@@ -104,8 +104,14 @@ last-opened, and aggregate-open-count summary; and return a server-built
 `https://wa.me` URL for immediate browser navigation. The rendered message,
 phone number, raw activation token, and click history are not persisted. The
 operation records `WHATSAPP_OPENED`, never delivery or read, and does not
-change the owner-maintained manual distribution status. No external provider
-call, background job, or delivery claim is made.
+change the owner-maintained manual distribution status. For a live trial
+invitation, it locks the invitation row and atomically claims one
+invitation-scoped unique normalized contact in the trial usage ledger. Repeat
+sends to that contact, including RSVP/event reminders, do not consume another
+slot. A new contact after the 30-contact limit returns
+`CAPACITY_EXCEEDED` without issuing a credential or recording an open. A paid
+active invitation bypasses this claim. No external provider call, background
+job, or delivery claim is made.
 
 ### Publish
 
