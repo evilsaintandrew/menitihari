@@ -11,6 +11,11 @@ import {
   invitationSlugInputSchema,
   updateInvitationSlug,
 } from "@/modules/invitations";
+import {
+  publicRsvpSettingsInputSchema,
+  setPublicRsvpSettings,
+  type PublicRsvpOwnerSettings,
+} from "@/modules/rsvp";
 import { nextPublicCacheInvalidator } from "@/server/public-cache";
 import { prisma } from "@/server/db";
 
@@ -58,6 +63,15 @@ export interface InvitationPasswordActionState {
 }
 
 export const initialInvitationPasswordActionState: InvitationPasswordActionState = { ok: false };
+
+export interface PublicRsvpSettingsActionState {
+  readonly ok: boolean;
+  readonly settings?: PublicRsvpOwnerSettings;
+  readonly message?: string;
+  readonly formError?: string;
+}
+
+export const initialPublicRsvpSettingsActionState: PublicRsvpSettingsActionState = { ok: false };
 
 function formString(value: FormDataEntryValue | null): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -158,5 +172,36 @@ export async function updateInvitationSlugAction(
       };
     }
     return { ok: false, formError: "Alamat link belum tersimpan. Coba lagi." };
+  }
+}
+
+export async function updatePublicRsvpSettingsAction(
+  invitationId: string,
+  _previousState: PublicRsvpSettingsActionState,
+  formData: FormData,
+): Promise<PublicRsvpSettingsActionState> {
+  const eventIds = formData.getAll("eventIds").filter((value): value is string => typeof value === "string");
+  const parsed = publicRsvpSettingsInputSchema.safeParse({
+    enabled: formData.get("enabled") === "on",
+    requirePhone: formData.get("identityMode") === "phone",
+    maxPartySize: Number(formData.get("maxPartySize")),
+    eventIds,
+  });
+  if (!parsed.success) {
+    return { ok: false, formError: parsed.error.issues[0]?.message ?? "Pengaturan RSVP belum valid." };
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    return { ok: false, formError: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+  }
+
+  try {
+    const settings = await setPublicRsvpSettings(prisma, session.user.id, invitationId, parsed.data);
+    revalidatePath(`/invitations/${invitationId}/settings`);
+    return { ok: true, settings, message: "Pengaturan RSVP publik tersimpan." };
+  } catch (error) {
+    if (error instanceof DomainError) return { ok: false, formError: toPublicError(error).message };
+    return { ok: false, formError: "Pengaturan RSVP belum tersimpan. Coba lagi." };
   }
 }

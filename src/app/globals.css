@@ -288,6 +288,9 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-sharing-password { border-top: 1px solid var(--color-border); display: grid; gap: 18px; padding-top: 22px; }
 .invitation-sharing-control-heading { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
 .invitation-sharing-password-note { margin-top: -4px; }
+.public-rsvp-settings { gap: 18px; }
+.public-rsvp-identity-choice, .public-rsvp-event-options { display: grid; gap: 10px; }
+.public-rsvp-identity-choice > .ui-field-label, .public-rsvp-event-options > .ui-field-label { margin-bottom: 2px; }
 .invitation-deletion-section { border-top: 1px solid var(--color-border); display: grid; gap: 18px; margin-top: 30px; padding-top: 28px; }
 .invitation-deletion-section h2 { color: var(--color-danger); font-size: 20px; margin-top: 4px; }
 .invitation-deletion-section p { color: var(--color-ink-muted); margin-top: 5px; }
@@ -557,6 +560,15 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-renderer blockquote { font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-style: italic; margin: 0 auto; max-width: 610px; }
 .invitation-renderer-hashtag { color: var(--invitation-accent); font-weight: 900; text-align: center; }
 .personalized-rsvp-card { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); display: grid; gap: 12px; margin-top: 4px; padding: 34px 0 8px; text-align: center; }
+.public-rsvp-card { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); display: grid; gap: 12px; margin-top: 4px; padding: 34px 0 8px; text-align: center; }
+.public-rsvp-card h2 { color: var(--invitation-foreground); font-size: clamp(24px, 4vw, 32px); }
+.public-rsvp-copy, .public-rsvp-confirmation > p { color: color-mix(in srgb, var(--invitation-foreground) 72%, transparent); }
+.public-rsvp-dialog { max-width: 560px; }
+.public-rsvp-form, .public-rsvp-confirmation { display: grid; gap: 18px; text-align: left; }
+.public-rsvp-events { background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: 14px; display: grid; gap: 6px; padding: 12px 14px; }
+.public-rsvp-events ul { color: var(--color-ink-muted); display: grid; gap: 3px; margin: 0; padding-left: 18px; }
+.public-rsvp-event-summary { margin: 0; }
+.public-rsvp-confirmation .ui-text-link { justify-self: start; }
 .personalized-rsvp-card h2 { color: var(--invitation-foreground); font-size: clamp(24px, 4vw, 32px); }
 .personalized-rsvp-summary { background: color-mix(in srgb, var(--invitation-accent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--invitation-accent) 25%, transparent); border-radius: 18px; display: grid; gap: 10px; margin: 0 auto 4px; max-width: 520px; padding: 14px 16px; text-align: left; width: 100%; }
 .personalized-rsvp-summary-row { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; }

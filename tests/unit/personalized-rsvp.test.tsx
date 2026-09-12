@@ -57,6 +57,7 @@ const invitation: InvitationRenderData = {
   }],
   guest: { displayName: "Keluarga Santoso" },
   rsvp: { enabled: true, events: [event] },
+  publicRsvp: null,
 };
 
 afterEach(() => cleanup());

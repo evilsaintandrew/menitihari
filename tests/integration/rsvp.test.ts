@@ -4,7 +4,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient, RsvpStatus } from "@/generated/prisma/client";
 import { createInvitation, publishInvitation } from "@/modules/invitations";
 import { saveGuest } from "@/modules/guests";
-import { overrideRsvp, setOwnerRsvpControl, submitPersonalizedRsvp } from "@/modules/rsvp";
+import { activateGuest } from "@/modules/access";
+import { overrideRsvp, setOwnerRsvpControl, setPublicRsvpSettings, submitPersonalizedRsvp, submitPublicRsvp } from "@/modules/rsvp";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -12,6 +13,44 @@ const testPrisma = testDatabaseUrl
   : undefined;
 
 describe("personalized RSVP PostgreSQL integration", () => {
+  it.skipIf(!testDatabaseUrl)("creates a public guest, assignments, RSVP, and activatable personalized link", async () => {
+    const now = new Date("2026-09-12T00:00:00.000Z");
+    const owner = await testPrisma!.user.create({ data: { email: `public-rsvp-${Date.now()}@example.com`, emailVerified: true } });
+    const invitation = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    }, { now: () => now });
+    try {
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      await setPublicRsvpSettings(testPrisma!, owner.id, invitation.id, {
+        enabled: true,
+        requirePhone: true,
+        maxPartySize: 3,
+        eventIds: [event.id],
+      }, { now: () => now });
+      await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
+
+      const result = await submitPublicRsvp(testPrisma!, invitation.id, {
+        displayName: "Keluarga Santoso",
+        phone: "+62 812 3456 7890",
+        partySize: 2,
+      }, { now: () => now });
+      const assignment = await testPrisma!.guestEvent.findFirstOrThrow({ where: { guestId: result.guestId, eventId: event.id } });
+      expect(result).toMatchObject({ invitationId: invitation.id, guestId: result.guestId, duplicateWarning: false });
+      expect(await testPrisma!.rSVP.findUnique({ where: { guestEventId: assignment.id } })).toMatchObject({ status: "ATTENDING", attendanceCount: 2, source: "PUBLIC" });
+      expect(await testPrisma!.guestActivationCredential.count({ where: { guestId: result.guestId, state: "ISSUED" } })).toBe(1);
+
+      const token = result.personalizedPath.split("/g/")[1];
+      expect(token).toBeTruthy();
+      await expect(activateGuest(testPrisma!, token!, { invitationId: invitation.id, now: () => now })).resolves.toMatchObject({ guestId: result.guestId, invitationId: invitation.id });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+
   it.skipIf(!testDatabaseUrl)("persists per-event responses, enforces party limits, and closes at the server boundary", async () => {
     const now = new Date("2026-09-12T00:00:00.000Z");
     const owner = await testPrisma!.user.create({ data: { email: `rsvp-${Date.now()}@example.com`, emailVerified: true } });
@@ -65,6 +104,7 @@ describe("personalized RSVP PostgreSQL integration", () => {
       mainEventDate: "2026-12-20",
     }, { now: () => now });
     try {
+      await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
       const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
       const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
         displayName: "Keluarga Owner",

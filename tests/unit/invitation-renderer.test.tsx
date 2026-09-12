@@ -29,6 +29,7 @@ const invitation: InvitationRenderData = {
   },
   events: [],
   rsvp: null,
+  publicRsvp: null,
 };
 
 afterEach(() => {

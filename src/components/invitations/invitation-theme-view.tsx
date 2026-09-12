@@ -11,6 +11,7 @@ import type {
 import type { ResolvedThemePresentation } from "@/modules/themes";
 
 import { PersonalizedRsvp } from "./personalized-rsvp";
+import { PublicRsvp } from "./public-rsvp";
 
 interface InvitationThemeViewProps {
   readonly invitation: InvitationRenderData;
@@ -204,6 +205,7 @@ export function InvitationThemeView({ invitation, theme }: InvitationThemeViewPr
         )}
         {invitation.content.optional.hashtag && <p className="invitation-renderer-hashtag">{invitation.content.optional.hashtag}</p>}
         {invitation.mode === "personalized" && <PersonalizedRsvp data={invitation.rsvp} invitationId={invitation.invitationId} />}
+        {invitation.mode === "public" && <PublicRsvp data={invitation.publicRsvp} invitationId={invitation.invitationId} />}
       </div>
       <footer className="invitation-renderer-footer">{theme.definition.name}</footer>
     </article>

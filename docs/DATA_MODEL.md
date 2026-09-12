@@ -43,7 +43,8 @@ Key fields:
 -   `generic_access_enabled`
 -   `shared_password_hash`, `access_version`
 -   `guest_sharing_enabled`
--   `rsvp_enabled`, public-RSVP settings
+-   `rsvp_enabled`, public-RSVP enabled/phone-required settings, and
+    maximum public party size
 -   `guestbook_enabled`, guestbook mode/moderation
 -   timestamps/version for optimistic concurrency
 
@@ -77,7 +78,7 @@ content.
 -   livestream/external URL
 -   dress code
 -   contact fields
--   RSVP settings
+-   RSVP settings, including whether the event accepts public RSVP
 -   check-in window
 -   cancellation/archive fields, including optional cancellation message
 
