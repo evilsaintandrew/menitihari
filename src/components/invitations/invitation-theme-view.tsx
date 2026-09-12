@@ -125,6 +125,7 @@ function renderOptionalSections(
   events: readonly InvitationRenderEvent[],
   timezone: string,
   language: "id" | "en",
+  personalized: boolean,
 ): ReactNode[] {
   const copy = labels[language];
   const fullNames = content.optional.fullNames
@@ -144,7 +145,7 @@ function renderOptionalSections(
       {parentNames.length > 0 && <><p className="invitation-renderer-kicker">{copy.parents}</p>{parentNames.map((parent) => <p key={parent}>{parent}</p>)}</>}
       {socialLinks.length > 0 && <><p className="invitation-renderer-kicker">{copy.social}</p><ul className="invitation-renderer-social-links">{socialLinks.map(({ id, label }) => <li key={id}><a href={content.optional.socialLinks?.[id]} target="_blank" rel="noreferrer">{label}</a></li>)}</ul></>}
     </OptionalSection>,
-    events: events.length > 0 && <OptionalSection className="invitation-renderer-events" key="events"><p className="invitation-renderer-kicker">{copy.events}</p><ul>{events.map((event) => <EventCard event={event} language={language} timezone={timezone} key={event.id} />)}</ul></OptionalSection>,
+    events: events.length > 0 && <OptionalSection className="invitation-renderer-events" key="events"><p className="invitation-renderer-kicker">{personalized ? "Acara untuk Anda" : copy.events}</p><ul>{events.map((event) => <EventCard event={event} language={language} timezone={timezone} key={event.id} />)}</ul></OptionalSection>,
     opening_closing: (content.optional.opening || content.optional.closing || content.optional.quoteOrPrayer) && <OptionalSection key="opening_closing">
       {content.optional.opening && <p className="invitation-renderer-lede">{content.optional.opening}</p>}
       {content.optional.closing && <p className="invitation-renderer-lede">{content.optional.closing}</p>}
@@ -180,13 +181,25 @@ export function InvitationThemeView({ invitation, theme }: InvitationThemeViewPr
       style={style}
     >
       <header className="invitation-renderer-cover">
+        {invitation.mode === "personalized" && invitation.guest && (
+          <div className="invitation-renderer-addressee" aria-label="Undangan untuk">
+            <p className="invitation-renderer-kicker">Untuk</p>
+            <p>{invitation.guest.displayName}</p>
+          </div>
+        )}
         <p className="invitation-renderer-kicker">{copy.invitation}</p>
         <p className="invitation-renderer-script">{copy.withLove}</p>
         <h1><span>{invitation.content.core.coupleDisplayName1}</span><span aria-hidden="true">&amp;</span><span>{invitation.content.core.coupleDisplayName2}</span></h1>
         {invitation.events[0] && <p className="invitation-renderer-date">{formatDate(invitation.events[0].startsAt, invitation.events[0].timezone || invitation.timezone, invitation.language)}</p>}
       </header>
       <div className="invitation-renderer-sections">
-        {renderOptionalSections(invitation.content, invitation.events, invitation.timezone, invitation.language)}
+        {renderOptionalSections(
+          invitation.content,
+          invitation.events,
+          invitation.timezone,
+          invitation.language,
+          invitation.mode === "personalized",
+        )}
         {invitation.content.optional.hashtag && <p className="invitation-renderer-hashtag">{invitation.content.optional.hashtag}</p>}
       </div>
       <footer className="invitation-renderer-footer">{theme.definition.name}</footer>

@@ -5,6 +5,7 @@ import {
 } from "@/generated/prisma/client";
 import {
   getInvitationLifecycleCapabilities,
+  isPublishedInvitationAvailable,
   isPublicInvitationAvailable,
 } from "@/modules/lifecycle";
 import {
@@ -72,7 +73,11 @@ export type InvitationRenderRecord = NonNullable<Prisma.Result<
   "findUnique"
 >>;
 
-export type InvitationRenderMode = "preview" | "public";
+export type InvitationRenderMode = "preview" | "public" | "personalized";
+
+export interface InvitationGuestContext {
+  readonly displayName: string;
+}
 
 export interface InvitationRenderEvent {
   readonly id: string;
@@ -101,6 +106,7 @@ export interface InvitationRenderData {
   readonly themeConfig: unknown;
   readonly content: InvitationContent;
   readonly events: readonly InvitationRenderEvent[];
+  readonly guest: InvitationGuestContext | null;
 }
 
 export interface PublicInvitationPageData {
@@ -172,13 +178,14 @@ function toIso(value: Date | null): string | null {
 export function buildInvitationRenderData(
   record: InvitationRenderRecord,
   mode: InvitationRenderMode,
+  guest: InvitationGuestContext | null = null,
 ): InvitationRenderData {
   const events = record.events
     .filter((event) => event.archivedAt === null)
-    // Owner preview is the generic public view. A future guest-preview mode
-    // must provide an explicitly scoped guest model rather than widening this
-    // shared public renderer input.
     .filter((event) => {
+      if (mode === "personalized") {
+        return true;
+      }
       if (mode === "preview" || mode === "public") {
         return event.visibility === EventVisibility.GENERIC;
       }
@@ -214,10 +221,13 @@ export function buildInvitationRenderData(
     themeConfig: record.themeConfig,
     content: buildInvitationContent(record),
     events,
+    guest: mode === "personalized" ? guest : null,
   };
 }
 
 type InvitationRenderReadDatabase = Pick<PrismaClient, "invitation">;
+
+type PersonalizedInvitationReadDatabase = Pick<PrismaClient, "guest" | "invitation">;
 
 export async function getPublicInvitationPageData(
   database: InvitationRenderReadDatabase,
@@ -257,4 +267,50 @@ export async function getInvitationPreviewRenderData(
   return capabilities.canPreviewPrivately
     ? buildInvitationRenderData(record, "preview")
     : null;
+}
+
+/**
+ * Composes only data authorized by the already-validated guest session.
+ * This path deliberately does not use the generic public read or cache tag.
+ */
+export async function getPersonalizedInvitationPageData(
+  database: PersonalizedInvitationReadDatabase,
+  invitationId: string,
+  guestId: string,
+  now = new Date(),
+): Promise<InvitationRenderData | null> {
+  const guest = await database.guest.findFirst({
+    where: { id: guestId, invitationId, archivedAt: null },
+    select: {
+      displayName: true,
+      eventAssignments: {
+        where: {
+          state: "ACTIVE",
+          event: { invitationId, archivedAt: null },
+        },
+        select: { eventId: true },
+      },
+    },
+  });
+  if (!guest) return null;
+
+  const eventIds = guest.eventAssignments.map(({ eventId }) => eventId);
+  const record = await database.invitation.findFirst({
+    where: {
+      id: invitationId,
+      publicationState: "PUBLISHED",
+      events: { some: { id: { in: eventIds }, archivedAt: null } },
+    },
+    select: {
+      ...invitationRenderSelect,
+      events: {
+        where: { id: { in: eventIds }, archivedAt: null },
+        orderBy: { startsAt: "asc" },
+        select: invitationRenderSelect.events.select,
+      },
+    },
+  });
+  if (!record || !isPublishedInvitationAvailable(record, now)) return null;
+
+  return buildInvitationRenderData(record, "personalized", { displayName: guest.displayName });
 }

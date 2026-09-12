@@ -7,6 +7,7 @@ import {
   createInvitationPasswordSession,
   invitationPasswordRateLimiter,
   invitationPasswordSessionCookieName,
+  type InvitationPasswordAccessMode,
   sharedPasswordSchema,
 } from "@/modules/access";
 import { DomainError } from "@/modules/errors";
@@ -31,6 +32,7 @@ function requestIp(requestHeaders: Headers): string {
 
 export async function submitInvitationPasswordAction(
   invitationId: string,
+  mode: InvitationPasswordAccessMode,
   _previousState: InvitationPasswordGateState,
   formData: FormData,
 ): Promise<InvitationPasswordGateState> {
@@ -53,7 +55,7 @@ export async function submitInvitationPasswordAction(
   }
 
   try {
-    const session = await createInvitationPasswordSession(prisma, invitationId, parsed.data);
+    const session = await createInvitationPasswordSession(prisma, invitationId, parsed.data, { mode });
     const cookieStore = await cookies();
     cookieStore.set(invitationPasswordSessionCookieName(invitationId), session.sessionToken, {
       expires: session.expiresAt,

@@ -5,11 +5,14 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
 import { Card, CardHeader } from "@/components/ui";
 import {
+  getGuestSessionAccess,
+  guestSessionCookieName,
   getInvitationPasswordAccess,
   invitationPasswordSessionCookieName,
 } from "@/modules/access";
 import {
   getPublicInvitationPageData,
+  getPersonalizedInvitationPageData,
   getInvitationShareMetadataContext,
   buildInvitationShareMetadata,
   resolveInvitationSlug,
@@ -88,10 +91,19 @@ export default async function PublicInvitationPage({
   const passwordCookie = (await cookies()).get(
     invitationPasswordSessionCookieName(resolution.invitationId),
   );
+  const guestCookie = (await cookies()).get(guestSessionCookieName(resolution.invitationId));
+  const guestSession = await getGuestSessionAccess(
+    prisma,
+    resolution.invitationId,
+    guestCookie?.value,
+  );
+  const personalized = guestSession?.authorized === true && guestSession.guestId !== null;
   const access = await getInvitationPasswordAccess(
     prisma,
     resolution.invitationId,
     passwordCookie?.value,
+    new Date(),
+    { mode: personalized ? "personalized" : "generic" },
   );
   if (!access) notFound();
   if (!access.available) {
@@ -109,26 +121,26 @@ export default async function PublicInvitationPage({
   if (access.passwordRequired && !access.authorized) {
     return (
       <main className="public-invitation-page">
-        <InvitationPasswordGate invitationId={resolution.invitationId} />
+        <InvitationPasswordGate
+          invitationId={resolution.invitationId}
+          mode={personalized ? "personalized" : "generic"}
+        />
       </main>
     );
   }
 
-  const pageData = await getPublicInvitationPageData(prisma, resolution.invitationId);
-  if (!pageData) notFound();
+  const renderData = personalized
+    ? await getPersonalizedInvitationPageData(
+      prisma,
+      resolution.invitationId,
+      guestSession.guestId,
+    )
+    : (await getPublicInvitationPageData(prisma, resolution.invitationId))?.renderData ?? null;
+  if (!renderData) notFound();
 
   return (
     <main className="public-invitation-page">
-      {pageData.available && pageData.renderData ? (
-        <InvitationRenderer invitation={pageData.renderData} />
-      ) : (
-        <Card>
-          <CardHeader>
-            <p className="ui-overline">Menitihari</p>
-            <h1 className="auth-title">Undangan ini sudah tidak tersedia</h1>
-          </CardHeader>
-        </Card>
-      )}
+      <InvitationRenderer invitation={renderData} />
     </main>
   );
 }

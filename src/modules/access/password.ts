@@ -7,7 +7,11 @@ import {
 import { writeAuditEvent } from "@/modules/audit";
 import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
-import { isCommerciallyEditable, isPublicInvitationAvailable } from "@/modules/lifecycle";
+import {
+  isCommerciallyEditable,
+  isPublicInvitationAvailable,
+  isPublishedInvitationAvailable,
+} from "@/modules/lifecycle";
 import { ownerMembershipWhere } from "@/modules/invitations/authorization";
 import { z } from "zod";
 
@@ -60,6 +64,10 @@ interface ClockOptions {
   readonly now?: () => Date;
 }
 
+export interface InvitationPasswordSessionOptions extends ClockOptions {
+  readonly mode?: InvitationPasswordAccessMode;
+}
+
 export interface InvitationPasswordSessionResult {
   readonly sessionToken: string;
   readonly expiresAt: Date;
@@ -71,6 +79,12 @@ export interface InvitationPasswordAccess {
   readonly passwordRequired: boolean;
   readonly authorized: boolean;
   readonly accessVersion: number | null;
+}
+
+export type InvitationPasswordAccessMode = "generic" | "personalized";
+
+export interface InvitationPasswordAccessOptions {
+  readonly mode?: InvitationPasswordAccessMode;
 }
 
 export interface InvitationSharingSettings {
@@ -169,8 +183,14 @@ function assertValidDate(now: Date): void {
   if (!Number.isFinite(now.getTime())) throw new Error("Access clock is invalid");
 }
 
-function isInvitationAvailable(invitation: PasswordInvitationRecord, now: Date): boolean {
-  return isPublicInvitationAvailable(invitation, now);
+function isInvitationAvailable(
+  invitation: PasswordInvitationRecord,
+  now: Date,
+  mode: InvitationPasswordAccessMode,
+): boolean {
+  return mode === "personalized"
+    ? isPublishedInvitationAvailable(invitation, now)
+    : isPublicInvitationAvailable(invitation, now);
 }
 
 /** Reads only authorization state; the password hash is never returned. */
@@ -179,15 +199,17 @@ export async function getInvitationPasswordAccess(
   invitationId: string,
   sessionToken?: string,
   now = new Date(),
+  options: InvitationPasswordAccessOptions = {},
 ): Promise<InvitationPasswordAccess | null> {
   assertValidDate(now);
+  const mode = options.mode ?? "generic";
   const invitation = await database.invitation.findUnique({
     where: { id: invitationId },
     select: passwordInvitationSelect,
   });
   if (!invitation) return null;
 
-  const available = isInvitationAvailable(invitation, now);
+  const available = isInvitationAvailable(invitation, now, mode);
   if (!available) {
     return {
       available: false,
@@ -236,11 +258,12 @@ export async function createInvitationPasswordSession(
   database: AccessDatabase,
   invitationId: string,
   password: string,
-  options: ClockOptions = {},
+  options: InvitationPasswordSessionOptions = {},
 ): Promise<InvitationPasswordSessionResult> {
   const parsedPassword = sharedPasswordSchema.parse(password);
   const now = options.now?.() ?? new Date();
   assertValidDate(now);
+  const mode = options.mode ?? "generic";
   const sessionToken = randomBytes(32).toString("base64url");
   const sessionDigest = digest(sessionToken);
   const expiresAt = new Date(now.getTime() + INVITATION_PASSWORD_SESSION_SECONDS * 1_000);
@@ -252,7 +275,7 @@ export async function createInvitationPasswordSession(
     });
     if (
       !invitation ||
-      !isInvitationAvailable(invitation, now) ||
+      !isInvitationAvailable(invitation, now, mode) ||
       !invitation.sharedPasswordHash ||
       !(await verifySharedPassword(parsedPassword, invitation.sharedPasswordHash))
     ) throw new DomainError(ERROR_CODES.FORBIDDEN);
