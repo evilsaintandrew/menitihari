@@ -66,6 +66,21 @@ Structured content for opening/closing, quote/prayer, hashtag, optional
 sections, section order, cover/share cover and presentation-neutral
 content.
 
+### WhatsAppTemplate
+
+Invitation-owned editable message template. Each invitation has exactly one
+default row for each template type:
+
+-   `INVITATION`
+-   `RSVP_REMINDER`
+-   `EVENT_REMINDER`
+
+The row stores the template body and timestamps. Template bodies may use only
+the server-owned placeholders `{guest_name}`, `{couple_name}`,
+`{invitation_url}`, `{event_name}`, `{event_date}`, `{event_time}`, and
+`{event_venue}`. Unknown or malformed placeholders are rejected before
+persistence. Templates do not store rendered per-guest messages.
+
 ## 3. Events
 
 ### Event

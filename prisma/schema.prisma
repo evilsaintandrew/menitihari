@@ -195,6 +195,12 @@ enum ExportJobState {
   EXPIRED
 }
 
+enum WhatsAppTemplateType {
+  INVITATION
+  RSVP_REMINDER
+  EVENT_REMINDER
+}
+
 model User {
   id                       String               @id @default(cuid())
   name                     String               @default("")
@@ -324,6 +330,7 @@ model Invitation {
   auditEvents      AuditEvent[]
   exportJobs       ExportJob[]
   guestImports     GuestImport[]
+  whatsappTemplates WhatsAppTemplate[]
   primaryEvent     Event?                      @relation("PrimaryEvent", fields: [primaryEventId], references: [id], onDelete: SetNull)
 
   @@index([commercialState, trialEndsAt])
@@ -379,6 +386,21 @@ model InvitationContent {
   invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
 
   @@map("invitation_content")
+}
+
+model WhatsAppTemplate {
+  id           String              @id @default(cuid())
+  invitationId String              @map("invitation_id")
+  type         WhatsAppTemplateType
+  body         String              @db.Text
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@unique([invitationId, type])
+  @@index([invitationId])
+  @@map("whatsapp_templates")
 }
 
 model Event {

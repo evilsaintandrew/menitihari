@@ -75,6 +75,23 @@ Input: invitation id, expected version, validated content/config patch.\
 Behavior: optimistic concurrency; persist; increment version; invalidate
 relevant public cache after commit.
 
+### Manage WhatsApp templates
+
+Auth: owner.\
+Read input: invitation id. Mutation input: invitation id, one of the
+invitation/RSVP-reminder/event-reminder template types, and a bounded body.\
+Behavior: re-check owner membership and commercially editable invitation
+lifecycle on the server; return the invitation's default template set or
+update exactly one invitation-owned row. Bodies are validated against the
+allowlist `{guest_name}`, `{couple_name}`, `{invitation_url}`, `{event_name}`,
+`{event_date}`, `{event_time}`, and `{event_venue}`. Unknown or malformed
+placeholders fail with `VALIDATION_FAILED`; rendered guest-specific messages
+are not persisted by this operation. The unique invitation/type constraint
+prevents multiple defaults for one template type. No external side effect or
+background job is emitted, and template content changes do not require an
+audit event because they are ordinary owner-authored content rather than a
+security-sensitive operation.
+
 ### Publish
 
 Auth: owner.\
