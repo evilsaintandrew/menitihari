@@ -81,6 +81,16 @@ the server-owned placeholders `{guest_name}`, `{couple_name}`,
 `{event_venue}`. Unknown or malformed placeholders are rejected before
 persistence. Templates do not store rendered per-guest messages.
 
+### WhatsAppTrialContactUsage
+
+Invitation-scoped entitlement ledger for manual WhatsApp distribution during
+trial. Each row contains a deterministic digest of one normalized contact and
+the first time that contact consumed a trial WhatsApp slot. The composite
+`invitation_id` + `contact_digest` key makes repeat sends and reminder
+templates share one unique-contact entry without storing a second copy of the
+guest phone number. Rows are retained for the invitation lifecycle and are
+cascade-deleted with the invitation.
+
 ## 3. Events
 
 ### Event

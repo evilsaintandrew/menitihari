@@ -11,6 +11,7 @@ import { DomainError } from "@/modules/errors";
 import { ERROR_CODES } from "@/modules/errors/codes";
 import { getInvitationLifecycleCapabilities } from "@/modules/lifecycle";
 import { ownerMembershipWhere } from "@/modules/invitations/authorization";
+import { WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT } from "@/modules/whatsapp";
 import { z } from "zod";
 import {
   getInvitedPeopleCapacity,
@@ -207,11 +208,18 @@ export interface GuestManagementData {
   readonly commercialState: CommercialState;
   readonly trialEndsAt: string;
   readonly activeUntil: string | null;
+  readonly whatsappTrialContactUsage: WhatsAppTrialContactUsage | null;
   readonly canEdit: boolean;
   readonly invitedPeopleCapacity: InvitedPeopleCapacity;
   readonly groups: readonly GuestGroupItem[];
   readonly events: readonly GuestEventOption[];
   readonly guests: readonly GuestManagementItem[];
+}
+
+export interface WhatsAppTrialContactUsage {
+  readonly used: number;
+  readonly limit: number;
+  readonly remaining: number;
 }
 
 export type GuestRsvpFilter = "ALL" | "PENDING";
@@ -300,6 +308,9 @@ const managementSelect = {
         },
       },
     },
+  },
+  whatsappTrialContactUsages: {
+    select: { contactDigest: true },
   },
 } satisfies Prisma.InvitationSelect;
 
@@ -477,6 +488,13 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
     commercialState: record.commercialState,
     trialEndsAt: record.trialEndsAt.toISOString(),
     activeUntil: record.activeUntil?.toISOString() ?? null,
+    whatsappTrialContactUsage: record.commercialState === CommercialState.TRIAL
+      ? {
+          used: record.whatsappTrialContactUsages.length,
+          limit: WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT,
+          remaining: Math.max(0, WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT - record.whatsappTrialContactUsages.length),
+        }
+      : null,
     canEdit: getInvitationLifecycleCapabilities(record.commercialState, record.trialEndsAt, now, record.activeUntil).canEdit,
     invitedPeopleCapacity: getInvitedPeopleCapacity(
       sumPartySizes(record.guests.flatMap((guest) => guest.eventAssignments)),

@@ -331,6 +331,7 @@ model Invitation {
   exportJobs       ExportJob[]
   guestImports     GuestImport[]
   whatsappTemplates WhatsAppTemplate[]
+  whatsappTrialContactUsages WhatsAppTrialContactUsage[]
   primaryEvent     Event?                      @relation("PrimaryEvent", fields: [primaryEventId], references: [id], onDelete: SetNull)
 
   @@index([commercialState, trialEndsAt])
@@ -401,6 +402,21 @@ model WhatsAppTemplate {
   @@unique([invitationId, type])
   @@index([invitationId])
   @@map("whatsapp_templates")
+}
+
+// One row represents one unique normalized WhatsApp contact that has used the
+// trial distribution entitlement for an invitation. The digest avoids storing
+// a second copy of the guest's phone number while the composite key makes the
+// uniqueness invariant database-enforced.
+model WhatsAppTrialContactUsage {
+  invitationId  String   @map("invitation_id")
+  contactDigest String   @map("contact_digest") @db.VarChar(64)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@id([invitationId, contactDigest])
+  @@map("whatsapp_trial_contact_usages")
 }
 
 model Event {

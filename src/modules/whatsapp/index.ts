@@ -1,5 +1,9 @@
+import { createHash } from "node:crypto";
+
 import {
+  CommercialState,
   Prisma,
+  PublicationState,
   WhatsAppTemplateType,
   type PrismaClient,
 } from "@/generated/prisma/client";
@@ -12,6 +16,8 @@ import { z } from "zod";
 
 /** The template body is user-authored content, but remains bounded for wa.me URLs. */
 export const WHATSAPP_TEMPLATE_MAX_BODY_LENGTH = 4_096;
+
+export const WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT = 30;
 
 /**
  * Placeholder names are an internal contract shared with the renderer ticket.
@@ -110,6 +116,13 @@ export interface OpenedWhatsAppMessage extends RenderedWhatsAppMessage {
   readonly whatsappUrl: string;
   readonly openedAt: string;
   readonly openedCount: number;
+  readonly trialUsage: WhatsAppTrialContactUsageSummary | null;
+}
+
+export interface WhatsAppTrialContactUsageSummary {
+  readonly used: number;
+  readonly limit: number;
+  readonly remaining: number;
 }
 
 export const DEFAULT_WHATSAPP_TEMPLATES: Readonly<Record<WhatsAppTemplateType, string>> = {
@@ -183,6 +196,7 @@ type RenderDatabase = Pick<PrismaClient, "$transaction">;
 interface InternalRenderedWhatsAppMessage {
   readonly rendered: RenderedWhatsAppMessage;
   readonly normalizedPhone: string | null;
+  readonly trialUsage: WhatsAppTrialContactUsageSummary | null;
 }
 
 /** Return unique placeholder names in their first-appearance order. */
@@ -231,6 +245,12 @@ export function buildWhatsAppUrl(normalizedPhone: string, message: string): stri
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
+/** Hash a validated normalized contact without persisting another phone copy. */
+export function digestWhatsAppContact(normalizedPhone: string): string {
+  if (!/^\+\d{8,15}$/.test(normalizedPhone)) throw new Error("WhatsApp phone number is invalid");
+  return createHash("sha256").update(normalizedPhone, "utf8").digest("hex");
+}
+
 function formatEventValue(
   value: Date,
   timezone: string,
@@ -257,6 +277,70 @@ export function renderWhatsAppTemplateBody(body: string, values: WhatsAppTemplat
 export interface RenderWhatsAppMessageOptions {
   readonly baseUrl: string;
   readonly now?: () => Date;
+}
+
+interface LockedInvitationForWhatsAppUsage {
+  readonly id: string;
+  readonly publication_state: PublicationState;
+  readonly commercial_state: CommercialState;
+  readonly trial_ends_at: Date;
+  readonly active_until: Date | null;
+}
+
+/**
+ * Serialize trial claims on the invitation row, then let the composite key
+ * and count enforce one shared 30-contact pool across every template type.
+ */
+async function claimTrialWhatsAppContact(
+  transaction: Prisma.TransactionClient,
+  invitationId: string,
+  normalizedPhone: string,
+  now: Date,
+): Promise<WhatsAppTrialContactUsageSummary | null> {
+  const [invitation] = await transaction.$queryRaw<LockedInvitationForWhatsAppUsage[]>(Prisma.sql`
+    SELECT
+      "id",
+      "publication_state",
+      "commercial_state",
+      "trial_ends_at",
+      "active_until"
+    FROM "invitations"
+    WHERE "id" = ${invitationId}
+    FOR UPDATE
+  `);
+
+  if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
+
+  const commerciallyAvailable = invitation.publication_state === PublicationState.PUBLISHED && (
+    (invitation.commercial_state === CommercialState.TRIAL && invitation.trial_ends_at.getTime() > now.getTime()) ||
+    (invitation.commercial_state === CommercialState.PAID_ACTIVE && invitation.active_until !== null && invitation.active_until.getTime() > now.getTime())
+  );
+  if (!commerciallyAvailable) throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
+  if (invitation.commercial_state === CommercialState.PAID_ACTIVE) return null;
+
+  const contactDigest = digestWhatsAppContact(normalizedPhone);
+  const existing = await transaction.whatsAppTrialContactUsage.findUnique({
+    where: { invitationId_contactDigest: { invitationId, contactDigest } },
+    select: { contactDigest: true },
+  });
+  const used = await transaction.whatsAppTrialContactUsage.count({ where: { invitationId } });
+
+  if (!existing && used >= WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT) {
+    throw new DomainError(ERROR_CODES.CAPACITY_EXCEEDED);
+  }
+
+  if (!existing) {
+    await transaction.whatsAppTrialContactUsage.create({
+      data: { invitationId, contactDigest },
+    });
+  }
+
+  const nextUsed = used + (existing ? 0 : 1);
+  return {
+    used: nextUsed,
+    limit: WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT,
+    remaining: Math.max(0, WHATSAPP_TRIAL_UNIQUE_CONTACT_LIMIT - nextUsed),
+  };
 }
 
 function renderValues(
@@ -302,6 +386,7 @@ export async function renderWhatsAppMessage(
     parsed,
     baseUrl,
     now,
+    false,
   ).then(({ rendered }) => rendered));
 }
 
@@ -313,6 +398,7 @@ async function renderWhatsAppMessageInTransaction(
   parsed: z.output<typeof renderWhatsAppMessageInputSchema>,
   baseUrl: URL,
   now: Date,
+  claimTrialContact: boolean,
 ): Promise<InternalRenderedWhatsAppMessage> {
     const invitation = await transaction.invitation.findFirst({
       where: { id: invitationId, ...ownerMembershipWhere(userId) },
@@ -343,6 +429,11 @@ async function renderWhatsAppMessageInTransaction(
     });
     if (!template) throw new DomainError(ERROR_CODES.NOT_FOUND);
 
+    const normalizedPhone = guest.normalizedPhone;
+    const trialUsage = claimTrialContact && normalizedPhone
+      ? await claimTrialWhatsAppContact(transaction, invitationId, normalizedPhone, now)
+      : null;
+
     const credential = await issueGuestActivationCredentialInTransaction(
       transaction,
       invitationId,
@@ -369,7 +460,8 @@ async function renderWhatsAppMessageInTransaction(
         message,
         activationVersion: credential.version,
       },
-      normalizedPhone: guest.normalizedPhone,
+      normalizedPhone,
+      trialUsage,
     };
 }
 
@@ -392,7 +484,7 @@ export async function openWhatsApp(
   const baseUrl = assertBaseUrl(options.baseUrl);
 
   return database.$transaction(async (transaction) => {
-    const { rendered, normalizedPhone } = await renderWhatsAppMessageInTransaction(
+    const { rendered, normalizedPhone, trialUsage } = await renderWhatsAppMessageInTransaction(
       transaction,
       userId,
       invitationId,
@@ -400,6 +492,7 @@ export async function openWhatsApp(
       parsed,
       baseUrl,
       now,
+      true,
     );
     if (!normalizedPhone) throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
 
@@ -426,6 +519,7 @@ export async function openWhatsApp(
       whatsappUrl: buildWhatsAppUrl(normalizedPhone, rendered.message),
       openedAt: now.toISOString(),
       openedCount: updated.whatsappOpenedCount,
+      trialUsage,
     };
   });
 }

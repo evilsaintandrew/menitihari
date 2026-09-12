@@ -237,11 +237,13 @@ export async function openWhatsAppAction(
       return {
         ok: false,
         errorCode: publicError.code,
-        message: publicError.code === "VALIDATION_FAILED"
-          ? "Nomor WhatsApp belum diisi atau tidak valid."
-          : publicError.code === "NOT_INVITED_TO_EVENT"
-            ? "Tamu belum memiliki penugasan acara yang aktif."
-            : publicError.message,
+        message: publicError.code === "CAPACITY_EXCEEDED"
+          ? "Batas trial 30 kontak WhatsApp sudah tercapai. Kontak yang sama tidak dihitung lagi. Aktifkan undangan ini untuk menghapus batas tersebut; tautan personal tetap dapat digunakan."
+          : publicError.code === "VALIDATION_FAILED"
+            ? "Nomor WhatsApp belum diisi atau tidak valid."
+            : publicError.code === "NOT_INVITED_TO_EVENT"
+              ? "Tamu belum memiliki penugasan acara yang aktif."
+              : publicError.message,
       };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "WhatsApp belum dapat dibuka. Coba lagi." };
