@@ -92,6 +92,21 @@ background job is emitted, and template content changes do not require an
 audit event because they are ordinary owner-authored content rather than a
 security-sensitive operation.
 
+### Open WhatsApp distribution
+
+Auth: owner.\
+Input: invitation id, active guest id, and a validated invitation/RSVP/event
+template selection.\
+Behavior: re-check owner membership, invitation lifecycle, active guest/event
+assignment, and phone availability inside one transaction; render the current
+personalized message on demand; update only the guest's first-opened,
+last-opened, and aggregate-open-count summary; and return a server-built
+`https://wa.me` URL for immediate browser navigation. The rendered message,
+phone number, raw activation token, and click history are not persisted. The
+operation records `WHATSAPP_OPENED`, never delivery or read, and does not
+change the owner-maintained manual distribution status. No external provider
+call, background job, or delivery claim is made.
+
 ### Publish
 
 Auth: owner.\

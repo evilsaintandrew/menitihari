@@ -13,6 +13,7 @@ import { saveGuest } from "@/modules/guests";
 import {
   DEFAULT_WHATSAPP_TEMPLATES,
   getWhatsAppTemplates,
+  openWhatsApp,
   renderWhatsAppMessage,
   updateWhatsAppTemplate,
 } from "@/modules/whatsapp";
@@ -153,6 +154,61 @@ describe("WhatsApp template PostgreSQL integration", () => {
       });
       await expect(testPrisma!.whatsAppTemplate.findUniqueOrThrow({ where: { invitationId_type: { invitationId: invitation.id, type: WhatsAppTemplateType.EVENT_REMINDER } } })).resolves.toMatchObject({
         body: DEFAULT_WHATSAPP_TEMPLATES.EVENT_REMINDER,
+      });
+    } finally {
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+
+  it.skipIf(!testDatabaseUrl)("records WhatsApp opened summary without changing manual Sent status", async () => {
+    const owner = await testPrisma!.user.create({
+      data: { email: `whatsapp-open-owner-${Date.now()}@example.com`, emailVerified: true },
+    });
+    const invitation = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    });
+
+    try {
+      await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Santoso",
+        phone: "0812 3456 7890",
+        assignments: [{ eventId: event.id, maxPartySize: 3 }],
+      });
+      await testPrisma!.guest.update({ where: { id: guest.guestId }, data: { distributionStatus: "MARKED_SENT" } });
+
+      const firstOpenedAt = new Date("2026-09-12T01:00:00.000Z");
+      const first = await openWhatsApp(
+        testPrisma!,
+        owner.id,
+        invitation.id,
+        guest.guestId,
+        { type: WhatsAppTemplateType.INVITATION },
+        { baseUrl: "https://menitihari.example", now: () => firstOpenedAt },
+      );
+      const secondOpenedAt = new Date("2026-09-12T02:00:00.000Z");
+      const second = await openWhatsApp(
+        testPrisma!,
+        owner.id,
+        invitation.id,
+        guest.guestId,
+        { type: WhatsAppTemplateType.INVITATION },
+        { baseUrl: "https://menitihari.example", now: () => secondOpenedAt },
+      );
+
+      expect(new URL(first.whatsappUrl).hostname).toBe("wa.me");
+      expect(new URL(first.whatsappUrl).pathname).toBe("/6281234567890");
+      expect(new URL(first.whatsappUrl).searchParams.get("text")).toContain("Keluarga Santoso");
+      expect(second.openedCount).toBe(2);
+      await expect(testPrisma!.guest.findUniqueOrThrow({ where: { id: guest.guestId } })).resolves.toMatchObject({
+        distributionStatus: "MARKED_SENT",
+        whatsappFirstOpenedAt: firstOpenedAt,
+        whatsappLastOpenedAt: secondOpenedAt,
+        whatsappOpenedCount: 2,
       });
     } finally {
       await testPrisma!.invitation.delete({ where: { id: invitation.id } });

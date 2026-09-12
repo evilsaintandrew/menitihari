@@ -106,6 +106,12 @@ export interface RenderedWhatsAppMessage {
   readonly activationVersion: number;
 }
 
+export interface OpenedWhatsAppMessage extends RenderedWhatsAppMessage {
+  readonly whatsappUrl: string;
+  readonly openedAt: string;
+  readonly openedCount: number;
+}
+
 export const DEFAULT_WHATSAPP_TEMPLATES: Readonly<Record<WhatsAppTemplateType, string>> = {
   [WhatsAppTemplateType.INVITATION]:
     "Kepada {guest_name}, kami mengundang Anda ke pernikahan {couple_name}. Lihat undangan: {invitation_url}",
@@ -145,6 +151,7 @@ const renderGuestSelect = {
   id: true,
   displayName: true,
   displayPhone: true,
+  normalizedPhone: true,
   eventAssignments: {
     where: {
       state: "ACTIVE",
@@ -172,6 +179,11 @@ type TemplateDatabase = Pick<PrismaClient, "$transaction">;
 type RenderInvitationRecord = Prisma.InvitationGetPayload<{ select: typeof renderInvitationSelect }>;
 type RenderGuestRecord = Prisma.GuestGetPayload<{ select: typeof renderGuestSelect }>;
 type RenderDatabase = Pick<PrismaClient, "$transaction">;
+
+interface InternalRenderedWhatsAppMessage {
+  readonly rendered: RenderedWhatsAppMessage;
+  readonly normalizedPhone: string | null;
+}
 
 /** Return unique placeholder names in their first-appearance order. */
 export function extractWhatsAppTemplatePlaceholders(body: string): readonly WhatsAppTemplatePlaceholder[] {
@@ -210,6 +222,13 @@ export function buildPersonalizedInvitationUrl(baseUrl: string, slug: string, to
   parsed.search = "";
   parsed.hash = "";
   return parsed.toString();
+}
+
+/** Build the browser deep link without exposing a phone number to analytics. */
+export function buildWhatsAppUrl(normalizedPhone: string, message: string): string {
+  if (!/^\+?\d{8,15}$/.test(normalizedPhone)) throw new Error("WhatsApp phone number is invalid");
+  const phone = normalizedPhone.replace(/^\+/, "");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
 function formatEventValue(
@@ -275,7 +294,26 @@ export async function renderWhatsAppMessage(
   if (!Number.isFinite(now.getTime())) throw new Error("WhatsApp render clock is invalid");
   const baseUrl = assertBaseUrl(options.baseUrl);
 
-  return database.$transaction(async (transaction) => {
+  return database.$transaction(async (transaction) => renderWhatsAppMessageInTransaction(
+    transaction,
+    userId,
+    invitationId,
+    guestId,
+    parsed,
+    baseUrl,
+    now,
+  ).then(({ rendered }) => rendered));
+}
+
+async function renderWhatsAppMessageInTransaction(
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  invitationId: string,
+  guestId: string,
+  parsed: z.output<typeof renderWhatsAppMessageInputSchema>,
+  baseUrl: URL,
+  now: Date,
+): Promise<InternalRenderedWhatsAppMessage> {
     const invitation = await transaction.invitation.findFirst({
       where: { id: invitationId, ...ownerMembershipWhere(userId) },
       select: renderInvitationSelect,
@@ -321,17 +359,78 @@ export async function renderWhatsAppMessage(
     );
 
     return {
+      rendered: {
+        invitationId,
+        guestId,
+        templateType: parsed.type,
+        guestName: guest.displayName,
+        phone: guest.displayPhone,
+        invitationUrl,
+        message,
+        activationVersion: credential.version,
+      },
+      normalizedPhone: guest.normalizedPhone,
+    };
+}
+
+/**
+ * Record an owner-initiated WhatsApp deep-link open and return the link to
+ * navigate to. The first/last timestamps and count are coarse summary facts;
+ * no click history or rendered message is persisted.
+ */
+export async function openWhatsApp(
+  database: RenderDatabase,
+  userId: string,
+  invitationId: string,
+  guestId: string,
+  input: RenderWhatsAppMessageInput,
+  options: RenderWhatsAppMessageOptions,
+): Promise<OpenedWhatsAppMessage> {
+  const parsed = renderWhatsAppMessageInputSchema.parse(input);
+  const now = options.now?.() ?? new Date();
+  if (!Number.isFinite(now.getTime())) throw new Error("WhatsApp open clock is invalid");
+  const baseUrl = assertBaseUrl(options.baseUrl);
+
+  return database.$transaction(async (transaction) => {
+    const { rendered, normalizedPhone } = await renderWhatsAppMessageInTransaction(
+      transaction,
+      userId,
       invitationId,
       guestId,
-      templateType: parsed.type,
-      guestName: guest.displayName,
-      phone: guest.displayPhone,
-      invitationUrl,
-      message,
-      activationVersion: credential.version,
+      parsed,
+      baseUrl,
+      now,
+    );
+    if (!normalizedPhone) throw new DomainError(ERROR_CODES.VALIDATION_FAILED);
+
+    await transaction.guest.updateMany({
+      where: {
+        id: guestId,
+        invitationId,
+        archivedAt: null,
+        whatsappFirstOpenedAt: null,
+      },
+      data: { whatsappFirstOpenedAt: now },
+    });
+    const updated = await transaction.guest.update({
+      where: { id: guestId },
+      data: {
+        whatsappLastOpenedAt: now,
+        whatsappOpenedCount: { increment: 1 },
+      },
+      select: { whatsappOpenedCount: true },
+    });
+
+    return {
+      ...rendered,
+      whatsappUrl: buildWhatsAppUrl(normalizedPhone, rendered.message),
+      openedAt: now.toISOString(),
+      openedCount: updated.whatsappOpenedCount,
     };
   });
 }
+
+export const recordWhatsAppOpened = openWhatsApp;
 
 export function defaultWhatsAppTemplateRows(invitationId: string): Prisma.WhatsAppTemplateCreateManyInput[] {
   return templateTypes.map((type) => ({

@@ -30,6 +30,7 @@ import {
   bulkUpdateGuestsAction,
   getGuestMergePreviewAction,
   mergeGuestAction,
+  openWhatsAppAction,
   overrideRsvpAction,
   renderWhatsAppMessageAction,
   saveGuestAction,
@@ -38,6 +39,7 @@ import {
   type GuestActionState,
   type GuestMergePreviewActionState,
   type RsvpActionState,
+  type WhatsAppOpenActionState,
   type WhatsAppRenderActionState,
 } from "./actions";
 
@@ -51,8 +53,45 @@ function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
   return state === "TRIAL" ? "Trial" : state === "PAID_ACTIVE" ? "Aktif" : state === "GRACE" ? "Grace" : "Tidak aktif";
 }
 
-function distributionLabel(status: GuestManagementItem["distributionStatus"]): string {
-  return status === "MARKED_SENT" ? "Ditandai Terkirim" : status === "WHATSAPP_OPENED" ? "WhatsApp Dibuka" : "Belum Dikirim";
+function distributionLabel(guest: GuestManagementItem): string {
+  const labels = [
+    guest.distributionStatus === "MARKED_SENT" ? "Ditandai Terkirim" : null,
+    guest.whatsappLastOpenedAt ? "WhatsApp Dibuka" : null,
+  ].filter((label): label is string => label !== null);
+  return labels.length > 0 ? labels.join(" · ") : "Belum Dikirim";
+}
+
+function OpenWhatsAppAction({
+  invitationId,
+  guestId,
+  templateType,
+  canEdit,
+}: {
+  readonly invitationId: string;
+  readonly guestId: string;
+  readonly templateType: string;
+  readonly canEdit: boolean;
+}) {
+  const [state, action, pending] = useActionState<WhatsAppOpenActionState, FormData>(openWhatsAppAction, { ok: false });
+  const opened = state.opened;
+
+  useEffect(() => {
+    if (opened?.whatsappUrl) window.location.assign(opened.whatsappUrl);
+  }, [opened?.whatsappUrl]);
+
+  return (
+    <div className="guests-distribution-open-action">
+      <form action={action}>
+        <input name="invitationId" type="hidden" value={invitationId} />
+        <input name="guestId" type="hidden" value={guestId} />
+        <input name="type" type="hidden" value={templateType} />
+        <Button disabled={!canEdit || pending} type="submit">
+          {pending ? "Membuka WhatsApp…" : "Buka WhatsApp"}
+        </Button>
+      </form>
+      {state.message && !state.ok && <Alert role="alert" tone="danger" title="WhatsApp belum dibuka">{state.message}</Alert>}
+    </div>
+  );
 }
 
 function WhatsAppDistributionPreview({
@@ -88,6 +127,11 @@ function WhatsAppDistributionPreview({
           <p className="guests-distribution-link">
             Tautan personal: <TextLink href={rendered.invitationUrl} rel="noreferrer" target="_blank">Buka link</TextLink>
           </p>
+          {rendered.phone ? (
+            <OpenWhatsAppAction canEdit={canEdit} guestId={guest.id} invitationId={invitationId} templateType={rendered.templateType} />
+          ) : (
+            <Alert role="status" tone="warning" title="Nomor WhatsApp belum diisi">Tambahkan nomor WhatsApp tamu untuk membuka pesan langsung.</Alert>
+          )}
         </div>
       )}
       {state.message && !state.ok && <Alert role="alert" tone="danger" title="Pesan belum tersedia">{state.message}</Alert>}
@@ -604,7 +648,7 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
         <dl className="guests-card-meta">
           <div><dt>Acara</dt><dd>{guest.assignedEvents.length > 0 ? guest.assignedEvents.map((event) => event.name).join(" + ") : "Belum ditetapkan"}</dd></div>
           <div><dt>RSVP</dt><dd>{rsvpSummary}</dd></div>
-          <div><dt>Distribusi</dt><dd>{distributionLabel(guest.distributionStatus)} · {guest.viewedAt ? "Dilihat" : "Belum Dilihat"}</dd></div>
+          <div><dt>Distribusi</dt><dd>{distributionLabel(guest)} · {guest.viewedAt ? "Dilihat" : "Belum Dilihat"}{guest.whatsappOpenedCount > 0 ? ` · Dibuka ${guest.whatsappOpenedCount}x` : ""}</dd></div>
         </dl>
         {guest.notes && <p className="guests-card-notes">Catatan: {guest.notes}</p>}
         {canEdit && guest.assignedEvents.length > 0 && (

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommercialState } from "@/generated/prisma/client";
@@ -12,7 +12,20 @@ vi.mock("@/app/invitations/[id]/guests/actions", () => ({
   bulkUpdateGuestsAction: async () => ({ ok: true }),
   getGuestMergePreviewAction: async () => ({ ok: false }),
   mergeGuestAction: async () => ({ ok: true }),
-  renderWhatsAppMessageAction: async () => ({ ok: true }),
+  renderWhatsAppMessageAction: async () => ({
+    ok: true,
+    rendered: {
+      invitationId: "invitation-1",
+      guestId: "guest-1",
+      templateType: "INVITATION",
+      guestName: "Keluarga Santoso",
+      phone: "0812 3456 7890",
+      invitationUrl: "https://menitihari.example/alya-bima/g/token",
+      message: "Hai Keluarga Santoso",
+      activationVersion: 1,
+    },
+  }),
+  openWhatsAppAction: async () => ({ ok: true }),
   setPublicRsvpApprovalAction: async () => ({ ok: true }),
   setRsvpControlAction: async () => ({ ok: true }),
   overrideRsvpAction: async () => ({ ok: true }),
@@ -53,6 +66,9 @@ function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData
       assignedEvents: [],
       distributionStatus: "NOT_SENT",
       viewedAt: null,
+      whatsappFirstOpenedAt: null,
+      whatsappLastOpenedAt: null,
+      whatsappOpenedCount: 0,
       createdAt: "2026-09-11T08:30:00.000Z",
     }],
     ...overrides,
@@ -152,7 +168,21 @@ describe("GuestsManager", () => {
     expect(screen.getByRole("button", { name: "Terapkan ke tamu terpilih" })).toBeTruthy();
   });
 
-  it("exposes the WF-12 personal message action for assigned guests", () => {
+  it("shows WhatsApp opened separately from manual Sent and Viewed", () => {
+    const guest = data().guests[0];
+    render(<GuestsManager data={data({ guests: [{
+      ...guest,
+      distributionStatus: "MARKED_SENT",
+      viewedAt: "2026-09-11T09:00:00.000Z",
+      whatsappFirstOpenedAt: "2026-09-11T08:00:00.000Z",
+      whatsappLastOpenedAt: "2026-09-11T08:05:00.000Z",
+      whatsappOpenedCount: 2,
+    }] })} />);
+
+    expect(screen.getByText("Ditandai Terkirim · WhatsApp Dibuka · Dilihat · Dibuka 2x")).toBeTruthy();
+  });
+
+  it("exposes the WF-12 personal message action for assigned guests", async () => {
     const guest = data().guests[0];
     render(<GuestsManager data={data({ guests: [{
       ...guest,
@@ -160,6 +190,8 @@ describe("GuestsManager", () => {
     }] })} />);
 
     expect(screen.getByRole("button", { name: "Bagikan" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Bagikan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Buka WhatsApp" })).toBeTruthy());
     expect(screen.getByText("Belum Dikirim · Belum Dilihat")).toBeTruthy();
   });
 
