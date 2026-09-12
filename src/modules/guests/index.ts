@@ -21,6 +21,18 @@ import {
 } from "./capacity";
 export { normalizeGuestName, normalizePhone } from "./normalization";
 import { normalizeGuestName, normalizePhone } from "./normalization";
+export {
+  filterGuestManagementItems,
+  filterGuestsByDistribution,
+  filterGuestsByRsvp,
+  filterGuestsByViewed,
+} from "./filters";
+export type {
+  GuestDistributionFilter,
+  GuestManagementFilters,
+  GuestRsvpFilter,
+  GuestViewedFilter,
+} from "./filters";
 
 export * from "./capacity";
 export * from "./import";
@@ -220,16 +232,6 @@ export interface WhatsAppTrialContactUsage {
   readonly used: number;
   readonly limit: number;
   readonly remaining: number;
-}
-
-export type GuestRsvpFilter = "ALL" | "PENDING";
-
-export function filterGuestsByRsvp(
-  guests: readonly GuestManagementItem[],
-  filter: GuestRsvpFilter,
-): readonly GuestManagementItem[] {
-  if (filter === "ALL") return guests;
-  return guests.filter((guest) => guest.assignedEvents.some((event) => event.rsvpStatus === null || event.rsvpStatus === "PENDING"));
 }
 
 export interface GuestServiceOptions {

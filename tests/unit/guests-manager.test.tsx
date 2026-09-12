@@ -119,6 +119,23 @@ describe("GuestsManager", () => {
     expect(screen.queryByRole("heading", { name: "Rina" })).toBeNull();
   });
 
+  it("filters distribution and viewed status independently", () => {
+    const baseGuest = data().guests[0];
+    render(<GuestsManager data={data({ guests: [
+      { ...baseGuest, displayName: "Belum", distributionStatus: "NOT_SENT", viewedAt: null },
+      { ...baseGuest, id: "guest-2", displayName: "Terkirim", distributionStatus: "MARKED_SENT", viewedAt: "2026-09-11T09:00:00.000Z" },
+      { ...baseGuest, id: "guest-3", displayName: "Dibuka", distributionStatus: "NOT_SENT", whatsappLastOpenedAt: "2026-09-11T09:00:00.000Z", viewedAt: "2026-09-11T09:00:00.000Z" },
+    ] })} />);
+
+    fireEvent.change(screen.getByLabelText("Filter distribusi"), { target: { value: "MARKED_SENT" } });
+    expect(screen.getByRole("heading", { name: "Terkirim" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Belum" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Dibuka" })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Filter dilihat"), { target: { value: "NOT_VIEWED" } });
+    expect(screen.queryByRole("heading", { name: "Terkirim" })).toBeNull();
+  });
+
   it("shows public RSVP approval state and owner eligibility actions", () => {
     const baseGuest = data().guests[0];
     render(<GuestsManager data={data({ guests: [{
@@ -206,7 +223,8 @@ describe("GuestsManager", () => {
     expect(screen.getByRole("button", { name: "Bagikan" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bagikan" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Buka WhatsApp" })).toBeTruthy());
-    expect(screen.getByText("Belum Dikirim · Belum Dilihat")).toBeTruthy();
+    expect(screen.getAllByText("Belum Dikirim · Belum Dilihat")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Tandai Terkirim" })).toBeTruthy();
   });
 
   it("exposes a manual merge review for duplicate warnings", () => {
