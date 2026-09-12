@@ -551,7 +551,7 @@ export async function setPublicRsvpSettings(
       action: "invitation.public_rsvp_updated",
       metadata: {
         enabled: parsed.enabled,
-        require_phone: parsed.requirePhone,
+        require_contact_number: parsed.requirePhone,
         max_party_size: parsed.maxPartySize,
         event_count: parsed.eventIds.length,
       },

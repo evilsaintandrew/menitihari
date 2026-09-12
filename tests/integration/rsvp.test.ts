@@ -104,6 +104,7 @@ describe("personalized RSVP PostgreSQL integration", () => {
       mainEventDate: "2026-12-20",
     }, { now: () => now });
     try {
+      await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
       const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
       const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
         displayName: "Keluarga Owner",
