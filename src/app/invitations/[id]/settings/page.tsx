@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, TextLink } from "@/components/ui";
 import { InvitationDeletionSection } from "@/components/invitations/invitation-deletion-section";
 import { auth } from "@/lib/auth";
+import { getInvitationSharingSettings } from "@/modules/access";
 import {
   getInvitationDeletionStatus,
   getInvitationForOwner,
@@ -12,6 +13,7 @@ import {
 import { prisma } from "@/server/db";
 
 import { InvitationSlugForm } from "./slug-form";
+import { InvitationPasswordForm } from "./password-form";
 
 export default async function InvitationSettingsPage({
   params,
@@ -22,12 +24,13 @@ export default async function InvitationSettingsPage({
   if (!session?.user) redirect("/login");
 
   const { id } = await params;
-  const [slug, deletionStatus, invitation] = await Promise.all([
+  const [slug, deletionStatus, invitation, sharingSettings] = await Promise.all([
     getInvitationSlugForOwner(prisma, session.user.id, id),
     getInvitationDeletionStatus(prisma, session.user.id, id),
     getInvitationForOwner(prisma, session.user.id, id),
+    getInvitationSharingSettings(prisma, session.user.id, id),
   ]);
-  if (!slug || !deletionStatus || !invitation) notFound();
+  if (!slug || !deletionStatus || !invitation || !sharingSettings) notFound();
 
   return (
     <main className="auth-page invitation-settings-page">
@@ -39,11 +42,17 @@ export default async function InvitationSettingsPage({
         <Card>
           <CardHeader>
             <p className="ui-overline">Settings / Sharing &amp; Privacy</p>
-            <h1 className="auth-title">Alamat link publik</h1>
-            <p className="ui-card-description">Pilih alamat yang mudah dibagikan. Perubahan tidak menghapus link lama.</p>
+            <h1 className="auth-title">Sharing &amp; Privacy</h1>
+            <p className="ui-card-description">Atur cara tamu menemukan dan membuka undangan Anda.</p>
           </CardHeader>
           <CardContent>
             <InvitationSlugForm invitationId={id} canonicalSlug={slug.canonicalSlug} />
+            <InvitationPasswordForm
+              genericAccessEnabled={sharingSettings.genericAccessEnabled}
+              guestSharingEnabled={sharingSettings.guestSharingEnabled}
+              invitationId={id}
+              passwordEnabled={sharingSettings.passwordEnabled}
+            />
             <InvitationDeletionSection
               commercialState={deletionStatus.commercialState}
               invitationId={id}
