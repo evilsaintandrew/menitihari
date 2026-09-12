@@ -17,9 +17,12 @@ import { eventContactSchema, type EventContact } from "@/modules/events";
 import { ownerMembershipWhere } from "./authorization";
 import {
   buildPersonalizedRsvpData,
+  buildPublicRsvpData,
   type PersonalizedRsvpAssignmentRecord,
   type PersonalizedRsvpData,
+  type PublicRsvpData,
 } from "@/modules/rsvp";
+import { getInvitedPeopleCapacity } from "@/modules/guests/capacity";
 
 const invitationRenderSelect = {
   id: true,
@@ -37,6 +40,9 @@ const invitationRenderSelect = {
   trialEndsAt: true,
   activeUntil: true,
   genericAccessEnabled: true,
+  publicRsvpEnabled: true,
+  publicRsvpRequirePhone: true,
+  publicRsvpMaxPartySize: true,
   content: {
     select: {
       opening: true,
@@ -65,6 +71,9 @@ const invitationRenderSelect = {
       livestreamUrl: true,
       dressCode: true,
       contactFields: true,
+      rsvpEnabled: true,
+      publicRsvpEnabled: true,
+      rsvpClosesAt: true,
       cancelledAt: true,
       cancellationMessage: true,
       archivedAt: true,
@@ -113,6 +122,7 @@ export interface InvitationRenderData {
   readonly events: readonly InvitationRenderEvent[];
   readonly guest: InvitationGuestContext | null;
   readonly rsvp: PersonalizedRsvpData | null;
+  readonly publicRsvp: PublicRsvpData | null;
 }
 
 export interface PublicInvitationPageData {
@@ -229,15 +239,17 @@ export function buildInvitationRenderData(
     events,
     guest: mode === "personalized" ? guest : null,
     rsvp: null,
+    publicRsvp: null,
   };
 }
 
 type InvitationRenderReadDatabase = Pick<PrismaClient, "invitation">;
+type PublicInvitationReadDatabase = Pick<PrismaClient, "invitation" | "guestEvent">;
 
 type PersonalizedInvitationReadDatabase = Pick<PrismaClient, "guest" | "invitation">;
 
 export async function getPublicInvitationPageData(
-  database: InvitationRenderReadDatabase,
+  database: PublicInvitationReadDatabase,
   invitationId: string,
   now = new Date(),
 ): Promise<PublicInvitationPageData | null> {
@@ -248,9 +260,25 @@ export async function getPublicInvitationPageData(
   if (!record) return null;
 
   const available = isPublicInvitationAvailable(record, now);
+  if (!available) return { available: false, renderData: null };
+
+  const capacityRecord = await database.guestEvent.aggregate({
+    where: { state: "ACTIVE", guest: { invitationId, archivedAt: null } },
+    _sum: { maxPartySize: true },
+  });
+  const capacity = getInvitedPeopleCapacity(capacityRecord._sum.maxPartySize ?? 0);
+  const renderData = buildInvitationRenderData(record, "public");
   return {
-    available,
-    renderData: available ? buildInvitationRenderData(record, "public") : null,
+    available: true,
+    renderData: {
+      ...renderData,
+      publicRsvp: buildPublicRsvpData(
+        record,
+        record.events,
+        capacity,
+        now,
+      ),
+    },
   };
 }
 

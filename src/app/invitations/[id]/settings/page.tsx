@@ -10,10 +10,12 @@ import {
   getInvitationForOwner,
   getInvitationSlugForOwner,
 } from "@/modules/invitations";
+import { getPublicRsvpSettingsForOwner } from "@/modules/rsvp";
 import { prisma } from "@/server/db";
 
 import { InvitationSlugForm } from "./slug-form";
 import { InvitationPasswordForm } from "./password-form";
+import { PublicRsvpForm } from "./public-rsvp-form";
 
 export default async function InvitationSettingsPage({
   params,
@@ -24,13 +26,14 @@ export default async function InvitationSettingsPage({
   if (!session?.user) redirect("/login");
 
   const { id } = await params;
-  const [slug, deletionStatus, invitation, sharingSettings] = await Promise.all([
+  const [slug, deletionStatus, invitation, sharingSettings, publicRsvpSettings] = await Promise.all([
     getInvitationSlugForOwner(prisma, session.user.id, id),
     getInvitationDeletionStatus(prisma, session.user.id, id),
     getInvitationForOwner(prisma, session.user.id, id),
     getInvitationSharingSettings(prisma, session.user.id, id),
+    getPublicRsvpSettingsForOwner(prisma, session.user.id, id),
   ]);
-  if (!slug || !deletionStatus || !invitation || !sharingSettings) notFound();
+  if (!slug || !deletionStatus || !invitation || !sharingSettings || !publicRsvpSettings) notFound();
 
   return (
     <main className="auth-page invitation-settings-page">
@@ -53,6 +56,7 @@ export default async function InvitationSettingsPage({
               invitationId={id}
               passwordEnabled={sharingSettings.passwordEnabled}
             />
+            <PublicRsvpForm invitationId={id} settings={publicRsvpSettings} />
             <InvitationDeletionSection
               commercialState={deletionStatus.commercialState}
               invitationId={id}

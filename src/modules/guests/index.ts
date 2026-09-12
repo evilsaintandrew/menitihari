@@ -358,6 +358,21 @@ async function findDuplicateWarnings(
   }));
 }
 
+export async function hasGuestDuplicateWarning(
+  transaction: Prisma.TransactionClient,
+  invitationId: string,
+  normalizedName: string,
+  normalizedPhone: string | null,
+): Promise<boolean> {
+  const signals: Prisma.GuestWhereInput[] = [{ normalizedName }];
+  if (normalizedPhone) signals.push({ normalizedPhone });
+
+  const count = await transaction.guest.count({
+    where: { invitationId, archivedAt: null, OR: signals },
+  });
+  return count > 0;
+}
+
 async function assertEditableAndLock(
   transaction: Prisma.TransactionClient,
   userId: string,

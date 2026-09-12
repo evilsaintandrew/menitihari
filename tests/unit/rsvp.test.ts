@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { RsvpStatus } from "@/generated/prisma/client";
+import { EventVisibility, RsvpStatus } from "@/generated/prisma/client";
 import {
   buildPersonalizedRsvpData,
+  buildPublicRsvpData,
   createRsvpRateLimiter,
+  submitPublicRsvp,
   submitPersonalizedRsvp,
   type PersonalizedRsvpAssignmentRecord,
 } from "@/modules/rsvp";
+import { getInvitedPeopleCapacity } from "@/modules/guests/capacity";
 
 const now = new Date("2026-09-12T00:00:00.000Z");
 
@@ -141,5 +144,120 @@ describe("personalized RSVP domain", () => {
     expect(limiter.consume(input)).toMatchObject({ allowed: false, retryAfterSeconds: 1 });
     currentTime = 1_000;
     expect(limiter.consume(input).allowed).toBe(true);
+  });
+
+  it("builds public RSVP settings with only open generic events and closes at capacity", () => {
+    const event = {
+      id: "event-1",
+      name: "Resepsi",
+      startsAt: new Date("2026-12-20T04:00:00.000Z"),
+      endsAt: null,
+      rsvpEnabled: true,
+      publicRsvpEnabled: true,
+      visibility: EventVisibility.GENERIC,
+      cancelledAt: null,
+      archivedAt: null,
+      rsvpClosesAt: null,
+    };
+    const data = buildPublicRsvpData({
+      genericAccessEnabled: true,
+      publicRsvpEnabled: true,
+      publicRsvpRequirePhone: true,
+      publicRsvpMaxPartySize: 3,
+    }, [event], getInvitedPeopleCapacity(500), now);
+
+    expect(data).toMatchObject({ enabled: true, requirePhone: true, maxPartySize: 3, closed: true, events: [{ id: "event-1" }] });
+  });
+
+  it("creates public guest assignments, RSVPs, duplicate flag, and a one-time personalized path atomically", async () => {
+    const event = {
+      id: "event-1",
+      name: "Resepsi",
+      startsAt: new Date("2026-12-20T04:00:00.000Z"),
+      endsAt: null,
+      rsvpEnabled: true,
+      publicRsvpEnabled: true,
+      visibility: EventVisibility.GENERIC,
+      cancelledAt: null,
+      archivedAt: null,
+      rsvpClosesAt: null,
+    };
+    const transaction = {
+      invitation: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "invitation-1",
+          genericAccessEnabled: true,
+          publicRsvpEnabled: true,
+          publicRsvpRequirePhone: true,
+          publicRsvpMaxPartySize: 3,
+          publicationState: "PUBLISHED",
+          commercialState: "TRIAL",
+          trialEndsAt: new Date("2026-12-20T00:00:00.000Z"),
+          activeUntil: null,
+        }),
+      },
+      event: { findMany: vi.fn().mockResolvedValue([event]) },
+      guestEvent: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { maxPartySize: 0 } }),
+        create: vi.fn().mockResolvedValue({ id: "guest-event-1" }),
+      },
+      guest: {
+        count: vi.fn().mockResolvedValue(1),
+        create: vi.fn().mockResolvedValue({ id: "guest-1" }),
+      },
+      rSVP: { create: vi.fn().mockResolvedValue({ id: "rsvp-1" }) },
+      invitationSlug: { findFirst: vi.fn().mockResolvedValue({ slug: "alya-bima" }) },
+      guestActivationCredential: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        create: vi.fn().mockResolvedValue({ version: 1, createdAt: now }),
+      },
+      auditEvent: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const database = {
+      $transaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
+    } as never;
+
+    const result = await submitPublicRsvp(database, "invitation-1", {
+      displayName: "  Keluarga Santoso ",
+      phone: "+62 812 3456 7890",
+      partySize: 2,
+    }, { now: () => now });
+
+    expect(result).toMatchObject({
+      guestId: "guest-1",
+      duplicateWarning: true,
+      events: [{ id: "event-1", name: "Resepsi" }],
+    });
+    expect(result.personalizedPath).toMatch(/^\/alya-bima\/g\/[A-Za-z0-9_-]{43,}$/);
+    expect(transaction.guest.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ normalizedName: "keluarga santoso", normalizedPhone: "+6281234567890" }) }));
+    expect(transaction.guestEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ maxPartySize: 3 }) }));
+    expect(transaction.rSVP.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: RsvpStatus.ATTENDING, attendanceCount: 2, source: "PUBLIC" }) }));
+  });
+
+  it("rejects a public signup that would exceed the invited capacity before creating a guest", async () => {
+    const transaction = {
+      invitation: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "invitation-1", genericAccessEnabled: true, publicRsvpEnabled: true,
+          publicRsvpRequirePhone: false, publicRsvpMaxPartySize: 2,
+          publicationState: "PUBLISHED", commercialState: "TRIAL",
+          trialEndsAt: new Date("2026-12-20T00:00:00.000Z"), activeUntil: null,
+        }),
+      },
+      event: { findMany: vi.fn().mockResolvedValue([{
+        id: "event-1", name: "Resepsi", startsAt: new Date("2026-12-20T04:00:00.000Z"), endsAt: null,
+        rsvpEnabled: true, publicRsvpEnabled: true, visibility: EventVisibility.GENERIC,
+        cancelledAt: null, archivedAt: null, rsvpClosesAt: null,
+      }]) },
+      guestEvent: { aggregate: vi.fn().mockResolvedValue({ _sum: { maxPartySize: 499 } }) },
+      guest: { create: vi.fn() },
+    };
+    const database = { $transaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)) } as never;
+
+    await expect(submitPublicRsvp(database, "invitation-1", { displayName: "Tamu", partySize: 1 }, { now: () => now })).rejects.toMatchObject({ code: "CAPACITY_EXCEEDED" });
+    expect(transaction.guest.create).not.toHaveBeenCalled();
   });
 });

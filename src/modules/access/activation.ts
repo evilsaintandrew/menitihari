@@ -148,6 +148,51 @@ function invalidActivation(): never {
 }
 
 /**
+ * Creates a credential inside a caller-owned transaction. The raw token is
+ * returned only to the caller that is issuing the link; only its digest is
+ * persisted.
+ */
+export async function issueGuestActivationCredentialInTransaction(
+  transaction: Prisma.TransactionClient,
+  invitationId: string,
+  guestId: string,
+  now: Date,
+  actorId: string | null = null,
+): Promise<GuestActivationCredentialResult> {
+  const token = randomBytes(32).toString("base64url");
+  const tokenDigest = digest(token);
+
+  const latest = await transaction.guestActivationCredential.findFirst({
+    where: { guestId },
+    orderBy: { version: "desc" },
+    select: { version: true },
+  });
+  const version = (latest?.version ?? 0) + 1;
+
+  await transaction.guestActivationCredential.updateMany({
+    where: { guestId, state: GuestAccessCredentialState.ISSUED, usedAt: null, revokedAt: null },
+    data: { state: GuestAccessCredentialState.REVOKED, revokedAt: now },
+  });
+
+  const created = await transaction.guestActivationCredential.create({
+    data: { guestId, version, digest: tokenDigest, state: GuestAccessCredentialState.ISSUED },
+    select: { version: true, createdAt: true },
+  });
+
+  await writeAuditEvent(transaction, {
+    actorId,
+    invitationId,
+    resourceType: "guest",
+    resourceId: guestId,
+    action: "guest.activation_issued",
+    metadata: { version: created.version },
+    createdAt: now,
+  });
+
+  return { guestId, invitationId, token, version: created.version, createdAt: created.createdAt };
+}
+
+/**
  * Issues a new guest activation credential. Existing issued credentials are
  * revoked in the same transaction, so regeneration makes the previous link
  * unusable without retaining the raw token.
@@ -161,8 +206,6 @@ export async function issueGuestActivationCredential(
 ): Promise<GuestActivationCredentialResult> {
   const now = options.now?.() ?? new Date();
   assertValidDate(now);
-  const token = randomBytes(32).toString("base64url");
-  const tokenDigest = digest(token);
 
   return database.$transaction(async (transaction) => {
     const invitation = await transaction.invitation.findFirst({
@@ -187,40 +230,8 @@ export async function issueGuestActivationCredential(
       data: { version: { increment: 1 } },
     });
 
-    const latest = await transaction.guestActivationCredential.findFirst({
-      where: { guestId },
-      orderBy: { version: "desc" },
-      select: { version: true },
-    });
-    const version = (latest?.version ?? 0) + 1;
-
-    await transaction.guestActivationCredential.updateMany({
-      where: { guestId, state: GuestAccessCredentialState.ISSUED, usedAt: null, revokedAt: null },
-      data: { state: GuestAccessCredentialState.REVOKED, revokedAt: now },
-    });
-
-    const created = await transaction.guestActivationCredential.create({
-      data: { guestId, version, digest: tokenDigest, state: GuestAccessCredentialState.ISSUED },
-      select: { version: true, createdAt: true },
-    });
-
-    await writeAuditEvent(transaction, {
-      actorId: userId,
-      invitationId,
-      resourceType: "guest",
-      resourceId: guestId,
-      action: "guest.activation_issued",
-      metadata: { version: created.version },
-      createdAt: now,
-    });
-
-    return {
-      guestId,
-      invitationId,
-      token,
-      version: created.version,
-      createdAt: created.createdAt,
-    };
+    const credential = await issueGuestActivationCredentialInTransaction(transaction, invitationId, guestId, now, userId);
+    return credential;
   });
 }
 

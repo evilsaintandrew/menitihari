@@ -43,6 +43,7 @@ const preview: InvitationRenderData = {
   content,
   events: [],
   rsvp: null,
+  publicRsvp: null,
 };
 
 const theme: ResolvedThemePresentation = {
