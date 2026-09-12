@@ -18,7 +18,7 @@ import {
   setInvitationSharedPassword,
 } from "@/modules/access";
 import { saveGuest } from "@/modules/guests";
-import { getPersonalizedInvitationPageData } from "@/modules/invitations";
+import { getInvitationPreviewRenderData, getPersonalizedInvitationPageData } from "@/modules/invitations";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -143,6 +143,18 @@ describe("personalized guest activation PostgreSQL integration", () => {
       expect(stored).toMatchObject({ guestId: guest.guestId, version: 1, state: "ISSUED", usedAt: null, revokedAt: null });
       expect(stored.digest).toBe(digestGuestActivationToken(issued.token));
       expect(stored.digest).not.toContain(issued.token);
+
+      await expect(getInvitationPreviewRenderData(testPrisma!, owner.id, invitation.id, guest.guestId)).resolves.toMatchObject({
+        mode: "personalized",
+        guest: { displayName: "Keluarga Santoso" },
+        events: [{ id: event.id }],
+      });
+      await expect(testPrisma!.guestActivationCredential.findUniqueOrThrow({ where: { id: stored.id } })).resolves.toMatchObject({
+        state: "ISSUED",
+        usedAt: null,
+        revokedAt: null,
+      });
+      await expect(testPrisma!.guestSession.count({ where: { invitationId: invitation.id } })).resolves.toBe(0);
 
       const activated = await activateGuest(testPrisma!, issued.token);
       expect(activated).toMatchObject({ guestId: guest.guestId, invitationId: invitation.id, accessVersion: 1 });

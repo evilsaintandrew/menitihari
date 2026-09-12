@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { EventVisibility } from "@/generated/prisma/client";
 import {
   buildInvitationRenderData,
+  getInvitationPreviewRenderData,
   getPersonalizedInvitationPageData,
   type InvitationRenderRecord,
 } from "@/modules/invitations";
@@ -27,6 +28,7 @@ const baseRecord = {
   publicRsvpRequireApproval: false,
   publicRsvpRequirePhone: false,
   publicRsvpMaxPartySize: 1,
+  rsvpEnabled: true,
   content: {
     opening: "Selamat datang",
     closing: null,
@@ -140,6 +142,69 @@ describe("invitation render data", () => {
       guest: { displayName: "Keluarga Santoso" },
       events: [{ id: "event-generic" }],
       rsvp: { enabled: true, events: [{ id: "event-generic", canRespond: true, status: "PENDING", maxPartySize: 3 }] },
+    });
+  });
+
+  it("composes a read-only owner preview as a selected guest", async () => {
+    const result = await getInvitationPreviewRenderData({
+      invitation: {
+        findFirst: async () => baseRecord,
+      },
+      guest: {
+        findFirst: async ({ where }: { readonly where: { readonly id: string } }) => {
+          expect(where.id).toBe("guest-1");
+          return {
+            displayName: "Keluarga Santoso",
+            eventAssignments: [
+              {
+                id: "guest-event-1",
+                eventId: "event-generic",
+                maxPartySize: 3,
+                rsvpEligible: true,
+                checkInEligible: true,
+                publicRsvpApproval: "PENDING",
+                rsvp: null,
+                event: {
+                  id: "event-generic",
+                  name: "Akad Nikah",
+                  startsAt: new Date("2026-12-20T03:00:00.000Z"),
+                  endsAt: null,
+                  timezone: "Asia/Jakarta",
+                  rsvpEnabled: true,
+                  rsvpClosesAt: null,
+                  cancelledAt: null,
+                },
+              },
+              {
+                id: "guest-event-2",
+                eventId: "event-private",
+                maxPartySize: 2,
+                rsvpEligible: true,
+                checkInEligible: true,
+                publicRsvpApproval: "PENDING",
+                rsvp: null,
+                event: {
+                  id: "event-private",
+                  name: "Jamuan keluarga",
+                  startsAt: new Date("2026-12-20T06:00:00.000Z"),
+                  endsAt: null,
+                  timezone: "Asia/Jakarta",
+                  rsvpEnabled: true,
+                  rsvpClosesAt: null,
+                  cancelledAt: null,
+                },
+              },
+            ],
+          };
+        },
+      },
+    } as never, "owner-1", "invitation-1", "guest-1");
+
+    expect(result).toMatchObject({
+      mode: "personalized",
+      guest: { displayName: "Keluarga Santoso" },
+      events: [{ id: "event-generic" }, { id: "event-private" }],
+      rsvp: null,
     });
   });
 

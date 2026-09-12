@@ -1,5 +1,6 @@
 import {
   EventVisibility,
+  GuestEventState,
   Prisma,
   type PrismaClient,
 } from "@/generated/prisma/client";
@@ -23,6 +24,7 @@ import {
   type PublicRsvpData,
 } from "@/modules/rsvp";
 import { getInvitedPeopleCapacity } from "@/modules/guests/capacity";
+import { z } from "zod";
 
 const invitationRenderSelect = {
   id: true,
@@ -39,6 +41,7 @@ const invitationRenderSelect = {
   commercialState: true,
   trialEndsAt: true,
   activeUntil: true,
+  rsvpEnabled: true,
   genericAccessEnabled: true,
   publicRsvpEnabled: true,
   publicRsvpRequireApproval: true,
@@ -244,10 +247,103 @@ export function buildInvitationRenderData(
   };
 }
 
-type InvitationRenderReadDatabase = Pick<PrismaClient, "invitation">;
 type PublicInvitationReadDatabase = Pick<PrismaClient, "invitation" | "guestEvent">;
 
 type PersonalizedInvitationReadDatabase = Pick<PrismaClient, "guest" | "invitation">;
+type InvitationPreviewReadDatabase = Pick<PrismaClient, "guest" | "invitation">;
+
+const personalizedPreviewGuestSelect = {
+  displayName: true,
+  eventAssignments: {
+    where: {
+      state: GuestEventState.ACTIVE,
+      event: { archivedAt: null },
+    },
+    select: {
+      id: true,
+      eventId: true,
+      maxPartySize: true,
+      rsvpEligible: true,
+      checkInEligible: true,
+      publicRsvpApproval: true,
+      rsvp: {
+        select: {
+          status: true,
+          attendanceCount: true,
+          notAttendingReason: true,
+          source: true,
+        },
+      },
+      event: {
+        select: {
+          id: true,
+          name: true,
+          startsAt: true,
+          endsAt: true,
+          timezone: true,
+          rsvpEnabled: true,
+          rsvpClosesAt: true,
+          cancelledAt: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.GuestSelect;
+
+type PersonalizedPreviewGuestRecord = NonNullable<Prisma.Result<
+  PrismaClient["guest"],
+  { select: typeof personalizedPreviewGuestSelect },
+  "findFirst"
+>>;
+
+const invitationPreviewGuestOptionsSelect = {
+  guests: {
+    where: {
+      archivedAt: null,
+      eventAssignments: {
+        some: {
+          state: GuestEventState.ACTIVE,
+          event: { archivedAt: null },
+        },
+      },
+    },
+    orderBy: { displayName: "asc" },
+    select: { id: true, displayName: true },
+  },
+} satisfies Prisma.InvitationSelect;
+
+export interface InvitationPreviewGuestOption {
+  readonly id: string;
+  readonly displayName: string;
+}
+
+type InvitationPreviewGuestOptionsRecord = NonNullable<Prisma.Result<
+  PrismaClient["invitation"],
+  { select: typeof invitationPreviewGuestOptionsSelect },
+  "findFirst"
+>>;
+
+const previewGuestIdSchema = z.string().trim().min(1).max(128);
+
+function buildPersonalizedPreviewRenderData(
+  record: InvitationRenderRecord,
+  guest: PersonalizedPreviewGuestRecord,
+): InvitationRenderData {
+  const assignedEventIds = new Set(guest.eventAssignments.map(({ eventId }) => eventId));
+  const renderData = buildInvitationRenderData(
+    {
+      ...record,
+      events: record.events.filter(({ id }) => assignedEventIds.has(id)),
+    },
+    "personalized",
+    { displayName: guest.displayName },
+  );
+
+  // Owner preview is read-only. The personalized invitation renderer remains
+  // the presentation entry point, but guest RSVP mutations require a guest
+  // session and therefore are intentionally not exposed in this context.
+  return { ...renderData, rsvp: null };
+}
 
 export async function getPublicInvitationPageData(
   database: PublicInvitationReadDatabase,
@@ -284,9 +380,10 @@ export async function getPublicInvitationPageData(
 }
 
 export async function getInvitationPreviewRenderData(
-  database: InvitationRenderReadDatabase,
+  database: InvitationPreviewReadDatabase,
   userId: string,
   invitationId: string,
+  guestId?: string,
 ): Promise<InvitationRenderData | null> {
   const record = await database.invitation.findFirst({
     where: { id: invitationId, ...ownerMembershipWhere(userId) },
@@ -300,9 +397,40 @@ export async function getInvitationPreviewRenderData(
     new Date(),
     record.activeUntil,
   );
-  return capabilities.canPreviewPrivately
-    ? buildInvitationRenderData(record, "preview")
-    : null;
+  if (!capabilities.canPreviewPrivately) return null;
+  if (guestId === undefined) return buildInvitationRenderData(record, "preview");
+  const parsedGuestId = previewGuestIdSchema.safeParse(guestId);
+  if (!parsedGuestId.success) return null;
+
+  const guest = await database.guest.findFirst({
+    where: {
+      id: parsedGuestId.data,
+      invitationId,
+      archivedAt: null,
+      eventAssignments: {
+        some: {
+          state: GuestEventState.ACTIVE,
+          event: { invitationId, archivedAt: null },
+        },
+      },
+    },
+    select: personalizedPreviewGuestSelect,
+  }) as PersonalizedPreviewGuestRecord | null;
+  if (!guest) return null;
+
+  return buildPersonalizedPreviewRenderData(record, guest);
+}
+
+export async function getInvitationPreviewGuestOptions(
+  database: Pick<PrismaClient, "invitation">,
+  userId: string,
+  invitationId: string,
+): Promise<readonly InvitationPreviewGuestOption[] | null> {
+  const record = await database.invitation.findFirst({
+    where: { id: invitationId, ...ownerMembershipWhere(userId) },
+    select: invitationPreviewGuestOptionsSelect,
+  }) as InvitationPreviewGuestOptionsRecord | null;
+  return record?.guests ?? null;
 }
 
 /**
