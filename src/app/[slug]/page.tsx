@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
 import { Card, CardHeader } from "@/components/ui";
+import {
+  getInvitationPasswordAccess,
+  invitationPasswordSessionCookieName,
+} from "@/modules/access";
 import {
   getPublicInvitationPageData,
   getInvitationShareMetadataContext,
@@ -11,6 +16,8 @@ import {
   isInvitationSlugPathSegment,
 } from "@/modules/invitations";
 import { prisma } from "@/server/db";
+
+import { InvitationPasswordGate } from "./password-gate";
 
 const unavailableShareMetadata: Metadata = {
   title: "Undangan pernikahan",
@@ -77,6 +84,35 @@ export default async function PublicInvitationPage({
   const resolution = await resolveInvitationSlug(prisma, slug);
   if (!resolution) notFound();
   if (!resolution.isCanonical) permanentRedirect(`/${resolution.canonicalSlug}`);
+
+  const passwordCookie = (await cookies()).get(
+    invitationPasswordSessionCookieName(resolution.invitationId),
+  );
+  const access = await getInvitationPasswordAccess(
+    prisma,
+    resolution.invitationId,
+    passwordCookie?.value,
+  );
+  if (!access) notFound();
+  if (!access.available) {
+    return (
+      <main className="public-invitation-page">
+        <Card>
+          <CardHeader>
+            <p className="ui-overline">Menitihari</p>
+            <h1 className="auth-title">Undangan ini sudah tidak tersedia</h1>
+          </CardHeader>
+        </Card>
+      </main>
+    );
+  }
+  if (access.passwordRequired && !access.authorized) {
+    return (
+      <main className="public-invitation-page">
+        <InvitationPasswordGate invitationId={resolution.invitationId} />
+      </main>
+    );
+  }
 
   const pageData = await getPublicInvitationPageData(prisma, resolution.invitationId);
   if (!pageData) notFound();

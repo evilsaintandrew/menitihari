@@ -1,2 +1,3 @@
 /** Personalized and shared-access domain boundary. */
-export {};
+export * from "./password";
+export * from "./password-rate-limit";
