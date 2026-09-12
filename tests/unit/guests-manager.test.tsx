@@ -12,6 +12,8 @@ vi.mock("@/app/invitations/[id]/guests/actions", () => ({
   bulkUpdateGuestsAction: async () => ({ ok: true }),
   getGuestMergePreviewAction: async () => ({ ok: false }),
   mergeGuestAction: async () => ({ ok: true }),
+  setRsvpControlAction: async () => ({ ok: true }),
+  overrideRsvpAction: async () => ({ ok: true }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -38,7 +40,7 @@ function data(overrides: Partial<GuestManagementData> = {}): GuestManagementData
       isNearLimit: false,
     },
     groups: [{ id: "group-family", name: "Keluarga" }],
-    events: [{ id: "event-1", name: "Resepsi" }],
+    events: [{ id: "event-1", name: "Resepsi", timezone: "Asia/Jakarta", endsAt: null, rsvpEnabled: true, rsvpClosesAt: null, rsvpClosesAtDate: "", rsvpClosesAtTime: "", eventActive: true, rsvpWindowOpen: true }],
     guests: [{
       id: "guest-1",
       displayName: "Keluarga Santoso",
@@ -80,6 +82,18 @@ describe("GuestsManager", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Cari tamu" }), { target: { value: "rina" } });
     expect(screen.queryByRole("heading", { name: "Keluarga Santoso" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Rina" })).toBeTruthy();
+  });
+
+  it("filters the guest list to parties with an unanswered RSVP", () => {
+    const baseGuest = data().guests[0];
+    render(<GuestsManager data={data({ guests: [
+      { ...baseGuest, assignedEvents: [{ id: "event-1", assignmentId: "assignment-1", name: "Resepsi", maxPartySize: 2, rsvpStatus: null, attendanceCount: null }] },
+      { ...baseGuest, id: "guest-2", displayName: "Rina", assignedEvents: [{ id: "event-1", assignmentId: "assignment-2", name: "Resepsi", maxPartySize: 1, rsvpStatus: "ATTENDING", attendanceCount: 1 }] },
+    ] })} />);
+
+    fireEvent.change(screen.getByLabelText("Filter RSVP"), { target: { value: "PENDING" } });
+    expect(screen.getByRole("heading", { name: "Keluarga Santoso" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Rina" })).toBeNull();
   });
 
   it("keeps editing and archive actions disabled for read-only lifecycle states", () => {

@@ -4,6 +4,7 @@ import { CommercialState, GuestEventState } from "@/generated/prisma/client";
 import {
   archiveGuest,
   bulkUpdateGuests,
+  filterGuestsByRsvp,
   getInvitedPeopleCapacity,
   mergeGuests,
   normalizePhone,
@@ -61,6 +62,16 @@ function databaseFor(transaction: ReturnType<typeof transactionFor>) {
 }
 
 describe("guest domain", () => {
+  it("filters guests with at least one pending RSVP assignment", () => {
+    const guests = [
+      { assignedEvents: [{ rsvpStatus: null }] },
+      { assignedEvents: [{ rsvpStatus: "ATTENDING" }] },
+      { assignedEvents: [{ rsvpStatus: "NOT_ATTENDING" }, { rsvpStatus: "PENDING" }] },
+    ] as never;
+    expect(filterGuestsByRsvp(guests, "PENDING")).toHaveLength(2);
+    expect(filterGuestsByRsvp(guests, "ALL")).toHaveLength(3);
+  });
+
   it("summarizes invited people and marks the final 50 places as near capacity", () => {
     expect(getInvitedPeopleCapacity(449)).toEqual({ used: 449, limit: 500, remaining: 51, isNearLimit: false });
     expect(getInvitedPeopleCapacity(450)).toEqual({ used: 450, limit: 500, remaining: 50, isNearLimit: true });

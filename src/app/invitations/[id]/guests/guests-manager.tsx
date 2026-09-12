@@ -23,20 +23,24 @@ import {
   TextLink,
   Textarea,
 } from "@/components/ui";
-import type { GuestManagementData, GuestManagementItem } from "@/modules/guests";
+import type { GuestManagementData, GuestManagementItem, GuestRsvpFilter } from "@/modules/guests";
 
 import {
   archiveGuestAction,
   bulkUpdateGuestsAction,
   getGuestMergePreviewAction,
   mergeGuestAction,
+  overrideRsvpAction,
   saveGuestAction,
+  setRsvpControlAction,
   type GuestActionState,
   type GuestMergePreviewActionState,
+  type RsvpActionState,
 } from "./actions";
 
 const initialActionState: GuestActionState = { ok: false };
 const initialMergePreviewState: GuestMergePreviewActionState = { ok: false };
+const initialRsvpActionState: RsvpActionState = { ok: false };
 const DEFAULT_MAX_PARTY_SIZE = "1";
 
 function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
@@ -51,9 +55,19 @@ function hasHistoricalAssignment(guest: GuestManagementItem, eventId: string): b
   return guest.assignedEvents.some((event) => event.id === eventId && (event.rsvpStatus !== null || event.attendanceCount !== null));
 }
 
+function filterGuestsByRsvp(guests: readonly GuestManagementItem[], filter: GuestRsvpFilter): readonly GuestManagementItem[] {
+  if (filter === "ALL") return guests;
+  return guests.filter((guest) => guest.assignedEvents.some((event) => event.rsvpStatus === null || event.rsvpStatus === "PENDING"));
+}
+
 function GuestActionMessage({ state }: { readonly state: GuestActionState }) {
   if (state.ok || !state.message) return null;
   return <Alert role="alert" tone="danger" title="Perubahan belum tersimpan">{state.message}</Alert>;
+}
+
+function RsvpActionMessage({ state }: { readonly state: RsvpActionState }) {
+  if (!state.message) return null;
+  return <Alert role={state.ok ? "status" : "alert"} tone={state.ok ? "success" : "danger"} title={state.ok ? "RSVP diperbarui" : "Perubahan RSVP belum tersimpan"}>{state.message}</Alert>;
 }
 
 function DuplicateWarning({ warnings }: { readonly warnings: GuestActionState["duplicateWarnings"] }) {
@@ -368,6 +382,100 @@ function BulkActionBar({
   );
 }
 
+function RsvpControlCard({ invitationId, event, canEdit }: { readonly invitationId: string; readonly event: GuestManagementData["events"][number]; readonly canEdit: boolean }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(setRsvpControlAction, initialRsvpActionState);
+  useEffect(() => { if (state.ok) router.refresh(); }, [router, state.ok]);
+  const status = !event.rsvpEnabled ? "Nonaktif" : event.rsvpWindowOpen ? "Terbuka" : "Tertutup";
+
+  return (
+    <Card className="guests-rsvp-control-card">
+      <CardHeader>
+        <div className="guests-rsvp-control-heading">
+          <div>
+            <p className="ui-overline">Kontrol RSVP</p>
+            <h2>{event.name}</h2>
+          </div>
+          <Badge tone={event.rsvpWindowOpen ? "success" : "warning"}>{status}</Badge>
+        </div>
+        <CardDescription>
+          {event.rsvpClosesAt
+            ? `Ditutup ${new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: event.timezone }).format(new Date(event.rsvpClosesAt))}.`
+            : "Tanpa jadwal penutupan; RSVP otomatis berhenti setelah acara berakhir."}
+        </CardDescription>
+      </CardHeader>
+      <div className="guests-rsvp-control-body">
+        <form action={action} className="guests-rsvp-schedule-form">
+          <input name="invitationId" type="hidden" value={invitationId} />
+          <input name="eventId" type="hidden" value={event.id} />
+          <input name="action" type="hidden" value="SCHEDULE" />
+          <Field htmlFor={`rsvp-close-date-${event.id}`}>
+            <FieldLabel>Tutup pada <span>(opsional)</span></FieldLabel>
+            <div className="guests-rsvp-date-fields">
+              <Input defaultValue={event.rsvpClosesAtDate} disabled={!canEdit || pending} id={`rsvp-close-date-${event.id}`} name="closesAtDate" type="date" />
+              <Input aria-label={`Waktu penutupan RSVP ${event.name}`} defaultValue={event.rsvpClosesAtTime} disabled={!canEdit || pending} name="closesAtTime" type="time" />
+            </div>
+            <FieldHint>Waktu mengikuti zona {event.timezone}.</FieldHint>
+          </Field>
+          <Button disabled={!canEdit || pending || !event.eventActive} type="submit">{pending ? "Menyimpan…" : "Simpan jadwal"}</Button>
+        </form>
+        <div className="guests-rsvp-control-actions">
+          <form action={action}>
+            <input name="invitationId" type="hidden" value={invitationId} />
+            <input name="eventId" type="hidden" value={event.id} />
+            <input name="action" type="hidden" value={event.rsvpWindowOpen ? "CLOSE" : "REOPEN"} />
+            <Button disabled={!canEdit || pending || !event.eventActive} type="submit" variant="secondary">{event.rsvpWindowOpen ? "Tutup sekarang" : "Buka kembali"}</Button>
+          </form>
+        </div>
+        <RsvpActionMessage state={state} />
+      </div>
+    </Card>
+  );
+}
+
+function GuestRsvpOverride({ invitationId, event, canEdit }: { readonly invitationId: string; readonly event: GuestManagementItem["assignedEvents"][number]; readonly canEdit: boolean }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(overrideRsvpAction, initialRsvpActionState);
+  const [status, setStatus] = useState(event.rsvpStatus ?? "PENDING");
+  const [attendanceCount, setAttendanceCount] = useState(String(event.attendanceCount ?? 1));
+  const [reason, setReason] = useState("");
+  useEffect(() => { if (state.ok) router.refresh(); }, [router, state.ok]);
+  return (
+    <div className="guests-rsvp-override">
+      <div className="guests-rsvp-override-heading">
+        <strong>{event.name}</strong>
+        <span>Owner override · tercatat di audit</span>
+      </div>
+      <form action={action} className="guests-rsvp-override-form">
+        <input name="invitationId" type="hidden" value={invitationId} />
+        <input name="guestEventId" type="hidden" value={event.assignmentId} />
+        <Field htmlFor={`override-status-${event.assignmentId}`}>
+          <FieldLabel>Jawaban</FieldLabel>
+          <Select disabled={!canEdit || pending} id={`override-status-${event.assignmentId}`} name="status" onChange={(change) => setStatus(change.target.value)} value={status}>
+            <option value="PENDING">Belum RSVP</option>
+            <option value="ATTENDING">Hadir</option>
+            <option value="NOT_ATTENDING">Tidak hadir</option>
+          </Select>
+        </Field>
+        {status === "ATTENDING" && (
+          <Field htmlFor={`override-count-${event.assignmentId}`}>
+            <FieldLabel>Jumlah hadir</FieldLabel>
+            <Input disabled={!canEdit || pending} id={`override-count-${event.assignmentId}`} max={event.maxPartySize} min={1} name="attendanceCount" onChange={(change) => setAttendanceCount(change.target.value)} type="number" value={attendanceCount} />
+          </Field>
+        )}
+        {status === "NOT_ATTENDING" && (
+          <Field htmlFor={`override-reason-${event.assignmentId}`}>
+            <FieldLabel>Alasan <span>(opsional)</span></FieldLabel>
+            <Input disabled={!canEdit || pending} id={`override-reason-${event.assignmentId}`} maxLength={500} name="notAttendingReason" onChange={(change) => setReason(change.target.value)} value={reason} />
+          </Field>
+        )}
+        <Button disabled={!canEdit || pending} size="sm" type="submit">{pending ? "Menyimpan…" : "Simpan override"}</Button>
+      </form>
+      <RsvpActionMessage state={state} />
+    </div>
+  );
+}
+
 function ArchiveGuestAction({ invitationId, guest, canEdit }: { readonly invitationId: string; readonly guest: GuestManagementItem; readonly canEdit: boolean }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(archiveGuestAction, initialActionState);
@@ -408,6 +516,11 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
           <div><dt>Distribusi</dt><dd>{distributionLabel(guest.distributionStatus)} · {guest.viewedAt ? "Dilihat" : "Belum Dilihat"}</dd></div>
         </dl>
         {guest.notes && <p className="guests-card-notes">Catatan: {guest.notes}</p>}
+        {canEdit && guest.assignedEvents.length > 0 && (
+          <div className="guests-rsvp-override-list" aria-label={`Override RSVP ${guest.displayName}`}>
+            {guest.assignedEvents.map((event) => <GuestRsvpOverride canEdit={canEdit} event={event} invitationId={invitationId} key={event.assignmentId} />)}
+          </div>
+        )}
       </CardContent>
       {editing && <GuestForm canEdit={canEdit} events={events} groups={groups} guest={guest} invitationId={invitationId} onSaved={() => setEditing(false)} />}
       {!editing && canEdit && guest.duplicateWarnings?.map((warning) => <GuestMergePanel invitationId={invitationId} key={warning.guestId} sourceGuestId={guest.id} target={warning} canEdit={canEdit} />)}
@@ -421,10 +534,11 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
 
 export function GuestsManager({ data }: { readonly data: GuestManagementData }) {
   const [query, setQuery] = useState("");
+  const [rsvpFilter, setRsvpFilter] = useState<GuestRsvpFilter>("ALL");
   const [adding, setAdding] = useState(data.guests.length === 0);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const normalizedQuery = query.trim().toLocaleLowerCase("id-ID");
-  const guests = data.guests.filter((guest) => {
+  const guests = filterGuestsByRsvp(data.guests, rsvpFilter).filter((guest) => {
     if (!normalizedQuery) return true;
     return [guest.displayName, guest.displayPhone ?? "", guest.group?.name ?? ""].some((value) => value.toLocaleLowerCase("id-ID").includes(normalizedQuery));
   });
@@ -467,16 +581,17 @@ export function GuestsManager({ data }: { readonly data: GuestManagementData }) 
           </p>
         )}
       </section>
+      {data.events.length > 0 && <section aria-label="Kontrol RSVP" className="guests-rsvp-controls">{data.events.map((event) => <RsvpControlCard canEdit={data.canEdit} event={event} invitationId={data.invitationId} key={event.id} />)}</section>}
       <section aria-label="Kontrol tamu" className="guests-toolbar">
         <Input aria-label="Cari tamu" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor, atau grup…" type="search" value={query} />
-        <div className="guests-toolbar-actions"><label className="guests-select-all"><input aria-label="Pilih semua tamu yang tampil" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? new Set([...current].filter((guestId) => !visibleGuestIds.includes(guestId))) : new Set([...current, ...visibleGuestIds]))} type="checkbox" /><span>Pilih tampil</span></label><TextLink className="ui-button ui-button-secondary" href={`/invitations/${data.invitationId}/guests/import`}>Import</TextLink><Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button></div>
+        <div className="guests-toolbar-actions"><Field htmlFor="guest-rsvp-filter"><FieldLabel>Filter RSVP</FieldLabel><Select id="guest-rsvp-filter" onChange={(event) => setRsvpFilter(event.target.value as GuestRsvpFilter)} value={rsvpFilter}><option value="ALL">Semua tamu</option><option value="PENDING">Belum RSVP</option></Select></Field><label className="guests-select-all"><input aria-label="Pilih semua tamu yang tampil" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? new Set([...current].filter((guestId) => !visibleGuestIds.includes(guestId))) : new Set([...current, ...visibleGuestIds]))} type="checkbox" /><span>Pilih tampil</span></label><TextLink className="ui-button ui-button-secondary" href={`/invitations/${data.invitationId}/guests/import`}>Import</TextLink><Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button></div>
       </section>
       {selectedIds.size > 0 && <BulkActionBar data={data} onComplete={() => setSelectedIds(new Set())} selectedGuestIds={[...selectedIds]} />}
       {adding && <Card className="guests-add-card"><CardHeader><p className="ui-overline">WF-11</p><h2>Tambah tamu</h2><CardDescription>Simpan satu penerima atau party dengan penugasan acara dan kapasitas yang jelas.</CardDescription></CardHeader><GuestForm canEdit={data.canEdit} events={data.events} groups={data.groups} guest={null} invitationId={data.invitationId} onSaved={() => setAdding(false)} /></Card>}
       {data.guests.length === 0 ? (
         <Card><EmptyState action={<Button onClick={() => setAdding(true)}>Tambah tamu</Button>} description="Tambahkan nama penerima untuk mulai menyiapkan daftar tamu undangan." title="Belum ada tamu" /></Card>
       ) : guests.length === 0 ? (
-        <Card><EmptyState description="Coba kata kunci lain atau hapus pencarian." title="Tamu tidak ditemukan" /></Card>
+        <Card><EmptyState description={rsvpFilter === "PENDING" ? "Semua tamu yang memiliki penugasan acara sudah memberikan jawaban." : "Coba kata kunci lain atau hapus pencarian."} title={rsvpFilter === "PENDING" ? "Tidak ada tamu yang belum RSVP" : "Tamu tidak ditemukan"} /></Card>
       ) : (
         <section aria-label="Daftar tamu" className="guests-list">{guests.map((guest) => <GuestCard canEdit={data.canEdit} events={data.events} groups={data.groups} guest={guest} invitationId={data.invitationId} key={guest.id} onToggle={toggleGuest} selected={selectedIds.has(guest.id)} />)}</section>
       )}

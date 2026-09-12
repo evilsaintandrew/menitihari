@@ -113,6 +113,14 @@ export interface GuestEventSummary {
 export interface GuestEventOption {
   readonly id: string;
   readonly name: string;
+  readonly timezone: string;
+  readonly endsAt: string | null;
+  readonly rsvpEnabled: boolean;
+  readonly rsvpClosesAt: string | null;
+  readonly rsvpClosesAtDate: string;
+  readonly rsvpClosesAtTime: string;
+  readonly eventActive: boolean;
+  readonly rsvpWindowOpen: boolean;
 }
 
 export interface GuestManagementItem {
@@ -200,6 +208,16 @@ export interface GuestManagementData {
   readonly guests: readonly GuestManagementItem[];
 }
 
+export type GuestRsvpFilter = "ALL" | "PENDING";
+
+export function filterGuestsByRsvp(
+  guests: readonly GuestManagementItem[],
+  filter: GuestRsvpFilter,
+): readonly GuestManagementItem[] {
+  if (filter === "ALL") return guests;
+  return guests.filter((guest) => guest.assignedEvents.some((event) => event.rsvpStatus === null || event.rsvpStatus === "PENDING"));
+}
+
 export interface GuestServiceOptions {
   readonly now?: () => Date;
 }
@@ -245,7 +263,7 @@ const managementSelect = {
   events: {
     where: { archivedAt: null },
     orderBy: { startsAt: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, timezone: true, endsAt: true, rsvpEnabled: true, rsvpClosesAt: true, cancelledAt: true },
   },
   guests: {
     where: { archivedAt: null },
@@ -283,6 +301,21 @@ type ManagementRecord = NonNullable<Prisma.Result<
 
 function optionalValue(value: string | undefined): string | null {
   return value && value.length > 0 ? value : null;
+}
+
+function localDateTimeFields(value: Date | null, timezone: string): { date: string; time: string } {
+  if (!value) return { date: "", time: "" };
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(value);
+  const fields = Object.fromEntries(parts.filter(({ type }) => type !== "literal").map(({ type, value: part }) => [type, part]));
+  return { date: `${fields.year}-${fields.month}-${fields.day}`, time: `${fields.hour}:${fields.minute}` };
 }
 
 type DuplicateGuestRecord = {
@@ -419,7 +452,21 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
       sumPartySizes(record.guests.flatMap((guest) => guest.eventAssignments)),
     ),
     groups: record.guestGroups,
-    events: record.events,
+    events: record.events.map((event) => {
+      const close = localDateTimeFields(event.rsvpClosesAt, event.timezone);
+      return {
+        id: event.id,
+        name: event.name,
+        timezone: event.timezone,
+        endsAt: event.endsAt?.toISOString() ?? null,
+        rsvpEnabled: event.rsvpEnabled,
+        rsvpClosesAt: event.rsvpClosesAt?.toISOString() ?? null,
+        rsvpClosesAtDate: close.date,
+        rsvpClosesAtTime: close.time,
+        eventActive: event.cancelledAt === null && (event.endsAt === null || event.endsAt.getTime() > now.getTime()),
+        rsvpWindowOpen: event.rsvpEnabled && event.cancelledAt === null && (event.endsAt === null || event.endsAt.getTime() > now.getTime()) && (event.rsvpClosesAt === null || event.rsvpClosesAt.getTime() > now.getTime()),
+      };
+    }),
     guests: guests.map((guest) => ({
       id: guest.id,
       displayName: guest.displayName,

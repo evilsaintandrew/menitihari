@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient, RsvpStatus } from "@/generated/prisma/client";
 import { createInvitation, publishInvitation } from "@/modules/invitations";
 import { saveGuest } from "@/modules/guests";
-import { submitPersonalizedRsvp } from "@/modules/rsvp";
+import { overrideRsvp, setOwnerRsvpControl, submitPersonalizedRsvp } from "@/modules/rsvp";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -49,6 +49,48 @@ describe("personalized RSVP PostgreSQL integration", () => {
       await expect(submitPersonalizedRsvp(testPrisma!, invitation.id, guest.guestId, {
         responses: [{ eventId: event.id, status: RsvpStatus.NOT_ATTENDING }],
       }, { now: () => now })).rejects.toMatchObject({ code: "RSVP_CLOSED" });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+
+  it.skipIf(!testDatabaseUrl)("supports owner close/reopen and audited override after close", async () => {
+    const now = new Date("2026-09-12T00:00:00.000Z");
+    const owner = await testPrisma!.user.create({ data: { email: `rsvp-owner-${Date.now()}@example.com`, emailVerified: true } });
+    const invitation = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    }, { now: () => now });
+    try {
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Owner",
+        assignments: [{ eventId: event.id, maxPartySize: 2 }],
+      }, { now: () => now });
+      const assignment = await testPrisma!.guestEvent.findFirstOrThrow({ where: { guestId: guest.guestId, eventId: event.id } });
+
+      await expect(setOwnerRsvpControl(testPrisma!, owner.id, invitation.id, { eventId: event.id, action: "CLOSE" }, { now: () => now })).resolves.toMatchObject({ action: "CLOSE" });
+      await expect(submitPersonalizedRsvp(testPrisma!, invitation.id, guest.guestId, {
+        responses: [{ eventId: event.id, status: RsvpStatus.ATTENDING, attendanceCount: 1 }],
+      }, { now: () => now })).rejects.toMatchObject({ code: "RSVP_CLOSED" });
+
+      await expect(overrideRsvp(testPrisma!, owner.id, invitation.id, {
+        guestEventId: assignment.id,
+        status: RsvpStatus.ATTENDING,
+        attendanceCount: 2,
+      }, { now: () => now })).resolves.toMatchObject({ status: RsvpStatus.ATTENDING, attendanceCount: 2 });
+      await expect(testPrisma!.auditEvent.findFirst({ where: { invitationId: invitation.id, action: "rsvp.owner_overridden" } })).resolves.toMatchObject({
+        userId: owner.id,
+        resourceType: "rsvp",
+      });
+
+      await expect(setOwnerRsvpControl(testPrisma!, owner.id, invitation.id, { eventId: event.id, action: "REOPEN" }, { now: () => now })).resolves.toMatchObject({ action: "REOPEN", rsvpClosesAt: null });
+      await expect(submitPersonalizedRsvp(testPrisma!, invitation.id, guest.guestId, {
+        responses: [{ eventId: event.id, status: RsvpStatus.NOT_ATTENDING }],
+      }, { now: () => now })).resolves.toMatchObject({ summary: [{ status: RsvpStatus.NOT_ATTENDING }] });
     } finally {
       await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
       await testPrisma!.invitation.delete({ where: { id: invitation.id } });

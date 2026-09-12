@@ -17,6 +17,12 @@ import {
   type GuestDuplicateWarning,
   type GuestMergePreview,
 } from "@/modules/guests";
+import {
+  overrideRsvp,
+  ownerRsvpControlInputSchema,
+  ownerRsvpOverrideInputSchema,
+  setOwnerRsvpControl,
+} from "@/modules/rsvp";
 import { prisma } from "@/server/db";
 
 export interface GuestActionState {
@@ -41,6 +47,12 @@ export interface GuestMergePreviewActionState {
   readonly message?: string;
 }
 
+export interface RsvpActionState {
+  readonly ok: boolean;
+  readonly errorCode?: string;
+  readonly message?: string;
+}
+
 function stringValue(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -53,6 +65,12 @@ function optionalFormValue(formData: FormData, key: string): string | undefined 
 
 function booleanValue(formData: FormData, key: string): boolean {
   return stringValue(formData, key) === "true";
+}
+
+function optionalNumber(formData: FormData, key: string): number | undefined {
+  const value = stringValue(formData, key).trim();
+  if (!value) return undefined;
+  return Number(value);
 }
 
 function parseGuestForm(formData: FormData) {
@@ -279,5 +297,59 @@ export async function archiveGuestAction(
       return { ok: false, errorCode: publicError.code, message: publicError.message };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Tamu belum dihapus. Coba lagi." };
+  }
+}
+
+export async function setRsvpControlAction(
+  _previousState: RsvpActionState,
+  formData: FormData,
+): Promise<RsvpActionState> {
+  const parsed = ownerRsvpControlInputSchema.safeParse({
+    eventId: stringValue(formData, "eventId"),
+    action: stringValue(formData, "action"),
+    closesAtDate: stringValue(formData, "closesAtDate") || undefined,
+    closesAtTime: stringValue(formData, "closesAtTime") || undefined,
+  });
+  if (!parsed.success) return { ok: false, errorCode: "VALIDATION_FAILED", message: parsed.error.issues[0]?.message ?? "Jadwal RSVP belum valid." };
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    await setOwnerRsvpControl(prisma, userId, stringValue(formData, "invitationId"), parsed.data);
+    return { ok: true, message: parsed.data.action === "REOPEN" ? "RSVP dibuka kembali." : parsed.data.action === "CLOSE" ? "RSVP ditutup." : "Jadwal penutupan RSVP disimpan." };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Jadwal RSVP belum valid." };
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return { ok: false, errorCode: publicError.code, message: publicError.code === "LIFECYCLE_LOCKED" ? "RSVP hanya dapat dikontrol saat acara dan undangan masih aktif." : publicError.message };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Kontrol RSVP belum tersimpan. Coba lagi." };
+  }
+}
+
+export async function overrideRsvpAction(
+  _previousState: RsvpActionState,
+  formData: FormData,
+): Promise<RsvpActionState> {
+  const parsed = ownerRsvpOverrideInputSchema.safeParse({
+    guestEventId: stringValue(formData, "guestEventId"),
+    status: stringValue(formData, "status"),
+    attendanceCount: optionalNumber(formData, "attendanceCount"),
+    notAttendingReason: stringValue(formData, "notAttendingReason") || undefined,
+  });
+  if (!parsed.success) return { ok: false, errorCode: "VALIDATION_FAILED", message: parsed.error.issues[0]?.message ?? "Jawaban RSVP belum valid." };
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    await overrideRsvp(prisma, userId, stringValue(formData, "invitationId"), parsed.data);
+    return { ok: true, message: "Override RSVP disimpan dan dicatat." };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Jawaban RSVP belum valid." };
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return { ok: false, errorCode: publicError.code, message: publicError.code === "VALIDATION_FAILED" ? "Jumlah hadir melebihi kapasitas tamu untuk acara ini." : publicError.message };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Override RSVP belum tersimpan. Coba lagi." };
   }
 }
