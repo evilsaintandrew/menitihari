@@ -12,6 +12,7 @@ vi.mock("@/app/invitations/[id]/guests/actions", () => ({
   bulkUpdateGuestsAction: async () => ({ ok: true }),
   getGuestMergePreviewAction: async () => ({ ok: false }),
   mergeGuestAction: async () => ({ ok: true }),
+  renderWhatsAppMessageAction: async () => ({ ok: true }),
   setPublicRsvpApprovalAction: async () => ({ ok: true }),
   setRsvpControlAction: async () => ({ ok: true }),
   overrideRsvpAction: async () => ({ ok: true }),
@@ -149,6 +150,17 @@ describe("GuestsManager", () => {
     fireEvent.change(screen.getByLabelText("Tindakan"), { target: { value: "DISTRIBUTION" } });
     expect(screen.getByLabelText("Status baru")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Terapkan ke tamu terpilih" })).toBeTruthy();
+  });
+
+  it("exposes the WF-12 personal message action for assigned guests", () => {
+    const guest = data().guests[0];
+    render(<GuestsManager data={data({ guests: [{
+      ...guest,
+      assignedEvents: [{ id: "event-1", assignmentId: "assignment-1", name: "Resepsi", maxPartySize: 2, rsvpStatus: null, attendanceCount: null }],
+    }] })} />);
+
+    expect(screen.getByRole("button", { name: "Bagikan" })).toBeTruthy();
+    expect(screen.getByText("Belum Dikirim · Belum Dilihat")).toBeTruthy();
   });
 
   it("exposes a manual merge review for duplicate warnings", () => {

@@ -31,17 +31,20 @@ import {
   getGuestMergePreviewAction,
   mergeGuestAction,
   overrideRsvpAction,
+  renderWhatsAppMessageAction,
   saveGuestAction,
   setPublicRsvpApprovalAction,
   setRsvpControlAction,
   type GuestActionState,
   type GuestMergePreviewActionState,
   type RsvpActionState,
+  type WhatsAppRenderActionState,
 } from "./actions";
 
 const initialActionState: GuestActionState = { ok: false };
 const initialMergePreviewState: GuestMergePreviewActionState = { ok: false };
 const initialRsvpActionState: RsvpActionState = { ok: false };
+const initialWhatsAppRenderActionState: WhatsAppRenderActionState = { ok: false };
 const DEFAULT_MAX_PARTY_SIZE = "1";
 
 function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
@@ -50,6 +53,46 @@ function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
 
 function distributionLabel(status: GuestManagementItem["distributionStatus"]): string {
   return status === "MARKED_SENT" ? "Ditandai Terkirim" : status === "WHATSAPP_OPENED" ? "WhatsApp Dibuka" : "Belum Dikirim";
+}
+
+function WhatsAppDistributionPreview({
+  invitationId,
+  guest,
+  canEdit,
+}: {
+  readonly invitationId: string;
+  readonly guest: GuestManagementItem;
+  readonly canEdit: boolean;
+}) {
+  const [state, action, pending] = useActionState(renderWhatsAppMessageAction, initialWhatsAppRenderActionState);
+  const rendered = state.rendered;
+
+  return (
+    <div className="guests-distribution-panel">
+      <form action={action}>
+        <input name="invitationId" type="hidden" value={invitationId} />
+        <input name="guestId" type="hidden" value={guest.id} />
+        <input name="type" type="hidden" value="INVITATION" />
+        <Button disabled={!canEdit || pending} size="sm" type="submit" variant="secondary">
+          {pending ? "Membuat pesan…" : "Bagikan"}
+        </Button>
+      </form>
+      {rendered && (
+        <div className="guests-distribution-result" role="status">
+          <p className="ui-overline">WF-12 · Pesan personal siap</p>
+          <p className="ui-muted">Tautan ini khusus untuk {rendered.guestName}. Pesan final tidak disimpan.</p>
+          <Field htmlFor={`whatsapp-message-${guest.id}`}>
+            <FieldLabel>Pesan</FieldLabel>
+            <Textarea id={`whatsapp-message-${guest.id}`} readOnly rows={6} value={rendered.message} />
+          </Field>
+          <p className="guests-distribution-link">
+            Tautan personal: <TextLink href={rendered.invitationUrl} rel="noreferrer" target="_blank">Buka link</TextLink>
+          </p>
+        </div>
+      )}
+      {state.message && !state.ok && <Alert role="alert" tone="danger" title="Pesan belum tersedia">{state.message}</Alert>}
+    </div>
+  );
 }
 
 function publicApprovalSummary(event: GuestManagementItem["assignedEvents"][number]): string {
@@ -577,6 +620,7 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
       </CardContent>
       {editing && <GuestForm canEdit={canEdit} events={events} groups={groups} guest={guest} invitationId={invitationId} onSaved={() => setEditing(false)} />}
       {!editing && canEdit && guest.duplicateWarnings?.map((warning) => <GuestMergePanel invitationId={invitationId} key={warning.guestId} sourceGuestId={guest.id} target={warning} canEdit={canEdit} />)}
+      {!editing && canEdit && guest.assignedEvents.length > 0 && <WhatsAppDistributionPreview canEdit={canEdit} guest={guest} invitationId={invitationId} />}
       {!editing && <CardFooter className="guests-card-actions">
         <Button disabled={!canEdit} onClick={() => setEditing(true)} size="sm" variant="secondary">Edit</Button>
         <ArchiveGuestAction canEdit={canEdit} guest={guest} invitationId={invitationId} />

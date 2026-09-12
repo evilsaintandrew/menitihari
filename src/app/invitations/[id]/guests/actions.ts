@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { env } from "@/config/env";
+import { WhatsAppTemplateType } from "@/generated/prisma/client";
 import { DomainError, toPublicError } from "@/modules/errors";
 import {
   archiveGuest,
@@ -25,6 +27,11 @@ import {
   setPublicRsvpApproval,
   setOwnerRsvpControl,
 } from "@/modules/rsvp";
+import {
+  renderWhatsAppMessage,
+  renderWhatsAppMessageInputSchema,
+  type RenderedWhatsAppMessage,
+} from "@/modules/whatsapp";
 import { prisma } from "@/server/db";
 
 export interface GuestActionState {
@@ -51,6 +58,13 @@ export interface GuestMergePreviewActionState {
 
 export interface RsvpActionState {
   readonly ok: boolean;
+  readonly errorCode?: string;
+  readonly message?: string;
+}
+
+export interface WhatsAppRenderActionState {
+  readonly ok: boolean;
+  readonly rendered?: RenderedWhatsAppMessage;
   readonly errorCode?: string;
   readonly message?: string;
 }
@@ -142,6 +156,45 @@ export async function saveGuestAction(
       };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Tamu belum tersimpan. Coba lagi." };
+  }
+}
+
+export async function renderWhatsAppMessageAction(
+  _previousState: WhatsAppRenderActionState,
+  formData: FormData,
+): Promise<WhatsAppRenderActionState> {
+  const parsed = renderWhatsAppMessageInputSchema.safeParse({
+    type: stringValue(formData, "type") || WhatsAppTemplateType.INVITATION,
+    eventId: optionalFormValue(formData, "eventId"),
+  });
+  if (!parsed.success) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Template pesan belum valid." };
+
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    const rendered = await renderWhatsAppMessage(
+      prisma,
+      userId,
+      stringValue(formData, "invitationId"),
+      stringValue(formData, "guestId"),
+      parsed.data,
+      { baseUrl: env.NEXT_PUBLIC_APP_URL },
+    );
+    return { ok: true, rendered };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Template pesan belum valid." };
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return {
+        ok: false,
+        errorCode: publicError.code,
+        message: publicError.code === "NOT_INVITED_TO_EVENT"
+          ? "Tamu belum memiliki penugasan acara yang aktif."
+          : publicError.message,
+      };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Pesan personal belum dapat dibuat. Coba lagi." };
   }
 }
 
