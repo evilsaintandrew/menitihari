@@ -113,6 +113,35 @@ slot. A new contact after the 30-contact limit returns
 active invitation bypasses this claim. No external provider call, background
 job, or delivery claim is made.
 
+### Copy personalized link
+
+Auth: owner.\
+Input: invitation id, active guest id, and the same validated template
+selection used by the distribution preview.\
+Behavior: render the current personalized message on demand and return the
+server-issued personalized URL for the owner to copy. The URL is not stored,
+the guest's manual distribution status and WhatsApp-open summary are not
+changed, and the operation does not claim trial capacity. The personalized
+URL continues to use the single-use activation credential contract; raw
+credentials are returned only in the immediate response and are not logged or
+included in metadata.
+
+### Update guest sharing
+
+Auth: owner.\
+Input: invitation id and a boolean `enabled` value.\
+Behavior: re-check owner membership and commercially editable invitation
+lifecycle inside one transaction; update `guest_sharing_enabled` with
+optimistic invitation-version protection; and append minimal before/after
+audit metadata when the value changes. Repeating the current value is
+idempotent and does not create an audit event. This setting does not change
+generic access, shared-password state, activation credentials, or guest
+sessions. Personalized guest rendering exposes native share/copy actions only
+when the server-authoritative setting is enabled. Each guest action re-checks
+the active guest session and setting, then issues a fresh single-use
+personalized URL; guest identity, tokens, and credentials are not placed in
+share metadata.
+
 ### Publish
 
 Auth: owner.\

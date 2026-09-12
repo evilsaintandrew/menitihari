@@ -286,6 +286,7 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-sharing-summary dt { color: var(--color-ink-muted); }
 .invitation-sharing-summary dd { color: var(--color-ink-strong); font-weight: 700; margin: 0; text-align: right; }
 .invitation-sharing-password { border-top: 1px solid var(--color-border); display: grid; gap: 18px; padding-top: 22px; }
+.invitation-sharing-guest { border-top: 1px solid var(--color-border); display: grid; gap: 18px; padding-top: 22px; }
 .invitation-sharing-control-heading { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
 .invitation-sharing-password-note { margin-top: -4px; }
 .public-rsvp-settings { gap: 18px; }
@@ -472,7 +473,10 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .guests-distribution-panel { border-top: 1px solid var(--color-border); display: grid; gap: 12px; margin-top: 2px; padding-top: 16px; }
 .guests-distribution-result { background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: 14px; display: grid; gap: 10px; padding: 14px; }
 .guests-distribution-result .ui-textarea { background: var(--color-surface); min-height: 132px; }
+.guests-distribution-link-row { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
 .guests-distribution-link { color: var(--color-ink-muted); font-size: 13px; overflow-wrap: anywhere; }
+.guests-distribution-copy-action { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.guests-distribution-copy-status { color: var(--color-success); font-size: 13px; font-weight: 700; }
 .guests-form { display: grid; gap: 18px; }
 .guests-form-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .guests-event-fieldset { border: 1px solid var(--color-border); border-radius: 16px; display: grid; gap: 12px; margin: 0; padding: 16px; }
@@ -570,6 +574,10 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-renderer-social-links a { border: 1px solid color-mix(in srgb, var(--invitation-accent) 40%, transparent); border-radius: 999px; color: var(--invitation-foreground); display: inline-block; font-size: 13px; padding: 7px 12px; text-decoration: none; }
 .invitation-renderer blockquote { font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-style: italic; margin: 0 auto; max-width: 610px; }
 .invitation-renderer-hashtag { color: var(--invitation-accent); font-weight: 900; text-align: center; }
+.personalized-share-actions { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); display: grid; gap: 10px; margin-top: 4px; padding: 34px 0 8px; text-align: center; }
+.personalized-share-actions h2 { color: var(--invitation-foreground); font-size: clamp(24px, 4vw, 32px); }
+.personalized-share-action-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.personalized-share-status { color: var(--color-success); font-size: 14px; font-weight: 700; }
 .personalized-rsvp-card { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); display: grid; gap: 12px; margin-top: 4px; padding: 34px 0 8px; text-align: center; }
 .public-rsvp-card { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); display: grid; gap: 12px; margin-top: 4px; padding: 34px 0 8px; text-align: center; }
 .public-rsvp-card h2 { color: var(--invitation-foreground); font-size: clamp(24px, 4vw, 32px); }

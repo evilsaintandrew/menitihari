@@ -35,6 +35,7 @@ const content: InvitationContent = {
 const preview: InvitationRenderData = {
   invitationId: "editor-ui-1",
   mode: "preview",
+  guestSharingEnabled: false,
   language: "id",
   timezone: "Asia/Jakarta",
   themeId: "classic",

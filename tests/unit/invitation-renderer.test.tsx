@@ -8,15 +8,18 @@ import { ThemeErrorBoundary } from "@/components/invitations/theme-error-boundar
 import type { InvitationRenderData } from "@/modules/invitations";
 
 const captureSanitizedError = vi.hoisted(() => vi.fn());
+const issueGuestShareLinkAction = vi.hoisted(() => vi.fn(async () => ({ ok: false })));
 vi.mock("@/modules/errors", () => ({ captureSanitizedError }));
 vi.mock("@/app/[slug]/rsvp-actions", () => ({
   initialSubmitRsvpActionState: { ok: false },
   submitPersonalizedRsvpAction: vi.fn(),
 }));
+vi.mock("@/app/[slug]/share-actions", () => ({ issueGuestShareLinkAction }));
 
 const invitation: InvitationRenderData = {
   invitationId: "invitation-1",
   mode: "preview",
+  guestSharingEnabled: false,
   language: "id",
   timezone: "Asia/Jakarta",
   themeId: "classic",
@@ -120,6 +123,25 @@ describe("shared invitation renderer", () => {
     ]);
     expect(screen.getByRole("status").textContent).toContain("Acara dibatalkan");
     expect(screen.getByText("Acara dipindahkan ke minggu depan.")).toBeTruthy();
+  });
+
+  it("shows guest share actions only for an allowed personalized invitation", () => {
+    const personalizedInvitation: InvitationRenderData = {
+      ...invitation,
+      mode: "personalized",
+      guestSharingEnabled: true,
+      guest: { displayName: "Keluarga Santoso" },
+    };
+    render(<InvitationRenderer invitation={personalizedInvitation} />);
+
+    expect(screen.getByRole("heading", { name: "Bagikan ke keluarga" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Bagikan" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Salin Link" })).toBeTruthy();
+
+    cleanup();
+    render(<InvitationRenderer invitation={{ ...personalizedInvitation, guestSharingEnabled: false }} />);
+    expect(screen.queryByRole("heading", { name: "Bagikan ke keluarga" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bagikan" })).toBeNull();
   });
 
   it("renders optional couple details, social links, quote, hashtag, and Love Story content", () => {

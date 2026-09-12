@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { PrismaClient } from "@/generated/prisma/client";
+import { CommercialState, PrismaClient } from "@/generated/prisma/client";
 import {
   createInvitation,
   publishInvitation,
@@ -13,8 +13,11 @@ import {
   guestSessionCookieName,
   getGuestSessionAccess,
   getInvitationPasswordAccess,
+  getInvitationSharingSettings,
   INVITATION_PASSWORD_SESSION_SECONDS,
   issueGuestActivationCredential,
+  issueGuestShareLink,
+  setGuestSharingEnabled,
   setInvitationSharedPassword,
 } from "@/modules/access";
 import { saveGuest } from "@/modules/guests";
@@ -100,6 +103,92 @@ describe("shared invitation access PostgreSQL integration", () => {
     } finally {
       await testPrisma!.auditEvent.deleteMany({ where: { invitationId: created.id } });
       await testPrisma!.invitation.delete({ where: { id: created.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+});
+
+describe("guest sharing settings PostgreSQL integration", () => {
+  it.skipIf(!testDatabaseUrl)("enforces owner and lifecycle boundaries with idempotent updates", async () => {
+    const now = new Date("2026-09-12T08:30:00.000Z");
+    const owner = await testPrisma!.user.create({
+      data: { email: `guest-sharing-owner-${Date.now()}@example.com`, emailVerified: true },
+    });
+    const otherUser = await testPrisma!.user.create({
+      data: { email: `guest-sharing-other-${Date.now()}@example.com`, emailVerified: true },
+    });
+    const invitation = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    }, { now: () => now });
+
+    try {
+      await expect(getInvitationSharingSettings(testPrisma!, owner.id, invitation.id)).resolves.toMatchObject({
+        invitationId: invitation.id,
+        genericAccessEnabled: true,
+        passwordEnabled: false,
+        guestSharingEnabled: true,
+      });
+
+      await expect(setGuestSharingEnabled(testPrisma!, owner.id, invitation.id, false, { now: () => now }))
+        .resolves.toMatchObject({ changed: true, guestSharingEnabled: false, invitationVersion: 2 });
+      await expect(setGuestSharingEnabled(testPrisma!, owner.id, invitation.id, false, { now: () => now }))
+        .resolves.toMatchObject({ changed: false, guestSharingEnabled: false, invitationVersion: 2 });
+      await expect(getInvitationSharingSettings(testPrisma!, owner.id, invitation.id)).resolves.toMatchObject({ guestSharingEnabled: false });
+      await expect(testPrisma!.auditEvent.count({
+        where: { invitationId: invitation.id, action: "invitation.guest_sharing_changed" },
+      })).resolves.toBe(1);
+
+      await expect(setGuestSharingEnabled(testPrisma!, otherUser.id, invitation.id, true, { now: () => now }))
+        .rejects.toMatchObject({ code: "NOT_FOUND" });
+
+      await testPrisma!.invitation.update({
+        where: { id: invitation.id },
+        data: { commercialState: CommercialState.TRIAL_EXPIRED },
+      });
+      await expect(setGuestSharingEnabled(testPrisma!, owner.id, invitation.id, true, { now: () => now }))
+        .rejects.toMatchObject({ code: "LIFECYCLE_LOCKED" });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.deleteMany({ where: { id: { in: [owner.id, otherUser.id] } } });
+    }
+  });
+});
+
+describe("guest sharing link PostgreSQL integration", () => {
+  it.skipIf(!testDatabaseUrl)("issues a fresh scoped link only for an authorized guest while sharing is enabled", async () => {
+    const now = new Date("2026-09-12T08:30:00.000Z");
+    const owner = await testPrisma!.user.create({
+      data: { email: `guest-share-link-${Date.now()}@example.com`, emailVerified: true },
+    });
+    const invitation = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    }, { now: () => now });
+
+    try {
+      await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
+      await testPrisma!.invitation.update({ where: { id: invitation.id }, data: { genericAccessEnabled: false } });
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Santoso",
+        assignments: [{ eventId: event.id, maxPartySize: 2 }],
+      });
+      const ownerIssued = await issueGuestActivationCredential(testPrisma!, owner.id, invitation.id, guest.guestId, { now: () => now });
+      const activated = await activateGuest(testPrisma!, ownerIssued.token, { now: () => now });
+
+      await expect(issueGuestShareLink(testPrisma!, invitation.id, activated.sessionToken, { now: () => now }))
+        .resolves.toMatchObject({ invitationId: invitation.id, guestId: guest.guestId, slug: "alya-bima", version: 2 });
+
+      await testPrisma!.invitation.update({ where: { id: invitation.id }, data: { guestSharingEnabled: false } });
+      await expect(issueGuestShareLink(testPrisma!, invitation.id, activated.sessionToken, { now: () => now }))
+        .rejects.toMatchObject({ code: "FORBIDDEN" });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
       await testPrisma!.user.delete({ where: { id: owner.id } });
     }
   });

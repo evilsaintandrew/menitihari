@@ -12,6 +12,9 @@ vi.mock("@/app/[slug]/rsvp-actions", () => ({
   initialSubmitRsvpActionState: { ok: false },
   submitPersonalizedRsvpAction: vi.fn(),
 }));
+vi.mock("@/app/[slug]/share-actions", () => ({
+  issueGuestShareLinkAction: vi.fn(async () => ({ ok: false })),
+}));
 
 const event = {
   id: "event-1",
@@ -30,6 +33,7 @@ const event = {
 const invitation: InvitationRenderData = {
   invitationId: "invitation-1",
   mode: "personalized",
+  guestSharingEnabled: true,
   language: "id",
   timezone: "Asia/Jakarta",
   themeId: "classic",

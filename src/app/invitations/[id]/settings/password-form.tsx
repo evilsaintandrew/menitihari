@@ -1,15 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useOptimistic, useTransition } from "react";
 
-import { Alert, Badge, Button, Field, FieldError, FieldLabel, Input } from "@/components/ui";
+import { Alert, Badge, Button, Checkbox, Field, FieldError, FieldLabel, Input } from "@/components/ui";
 
 import {
+  updateGuestSharingAction,
   updateInvitationPasswordAction,
 } from "./actions";
-import type { InvitationPasswordActionState } from "./actions";
+import type { GuestSharingActionState, InvitationPasswordActionState } from "./actions";
 
 const initialInvitationPasswordActionState: InvitationPasswordActionState = { ok: false };
+const initialGuestSharingActionState: GuestSharingActionState = { ok: false };
 
 export function InvitationPasswordForm({
   invitationId,
@@ -26,6 +28,14 @@ export function InvitationPasswordForm({
     updateInvitationPasswordAction.bind(null, invitationId),
     initialInvitationPasswordActionState,
   );
+  const [guestSharingState, guestSharingAction, guestSharingPending] = useActionState(
+    updateGuestSharingAction.bind(null, invitationId),
+    initialGuestSharingActionState,
+  );
+  const [guestSharing, setGuestSharing] = useOptimistic(
+    guestSharingState.guestSharingEnabled ?? guestSharingEnabled,
+  );
+  const [guestSharingTransitionPending, startGuestSharingTransition] = useTransition();
   const enabled = state.passwordEnabled ?? passwordEnabled;
 
   return (
@@ -40,7 +50,7 @@ export function InvitationPasswordForm({
         <div><dt>Akses umum</dt><dd>{genericAccessEnabled ? "Aktif" : "Tidak aktif"}</dd></div>
         <div><dt>Link personal</dt><dd>Aktif</dd></div>
         <div><dt>Password</dt><dd>{enabled ? "Digunakan" : "Tidak digunakan"}</dd></div>
-        <div><dt>Tamu dapat membagikan link</dt><dd>{guestSharingEnabled ? "Ya" : "Tidak"}</dd></div>
+        <div><dt>Tamu dapat membagikan link</dt><dd>{guestSharing ? "Ya" : "Tidak"}</dd></div>
       </dl>
 
       <div className="invitation-sharing-password">
@@ -105,6 +115,33 @@ export function InvitationPasswordForm({
             </form>
           </>
         )}
+      </div>
+
+      <div className="invitation-sharing-guest">
+        <div className="invitation-sharing-control-heading">
+          <div>
+            <h2>Izinkan Tamu Membagikan Link</h2>
+            <p className="ui-card-description">Tamu dapat memakai tombol bagikan atau salin link di undangan.</p>
+          </div>
+          <Badge tone={guestSharing ? "success" : "neutral"}>{guestSharing ? "On" : "Off"}</Badge>
+        </div>
+        <Checkbox
+          checked={guestSharing}
+          disabled={guestSharingPending || guestSharingTransitionPending}
+          label="Izinkan Tamu Membagikan Link"
+          description="Pengaturan ini hanya menampilkan atau menyembunyikan aksi berbagi pada halaman tamu."
+          onChange={(event) => {
+            const nextValue = event.currentTarget.checked;
+            const formData = new FormData();
+            formData.set("enabled", String(nextValue));
+            startGuestSharingTransition(() => {
+              setGuestSharing(nextValue);
+              guestSharingAction(formData);
+            });
+          }}
+        />
+        {guestSharingState.formError && <Alert role="alert" tone="danger" title="Perubahan belum tersimpan">{guestSharingState.formError}</Alert>}
+        {guestSharingState.ok && guestSharingState.message && <Alert role="status" tone="success" title="Tersimpan">{guestSharingState.message}</Alert>}
       </div>
     </section>
   );

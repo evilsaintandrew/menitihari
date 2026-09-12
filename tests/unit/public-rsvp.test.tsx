@@ -15,10 +15,14 @@ vi.mock("@/app/[slug]/rsvp-actions", () => ({
   initialSubmitPublicRsvpActionState: { ok: false },
   submitPublicRsvpAction,
 }));
+vi.mock("@/app/[slug]/share-actions", () => ({
+  issueGuestShareLinkAction: vi.fn(async () => ({ ok: false })),
+}));
 
 const invitation: InvitationRenderData = {
   invitationId: "invitation-1",
   mode: "public",
+  guestSharingEnabled: false,
   language: "id",
   timezone: "Asia/Jakarta",
   themeId: "classic",

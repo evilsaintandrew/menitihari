@@ -99,6 +99,11 @@ export interface InvitationPasswordChangeResult extends InvitationSharingSetting
   readonly accessVersion: number;
 }
 
+export interface InvitationGuestSharingChangeResult extends InvitationSharingSettings {
+  readonly changed: boolean;
+  readonly invitationVersion: number;
+}
+
 export interface InvitationPasswordChangeOptions extends ClockOptions {
   readonly cache?: { invalidateInvitation(invitationId: string): void | Promise<void> };
 }
@@ -310,6 +315,91 @@ export async function getInvitationSharingSettings(
     guestSharingEnabled: invitation.guestSharingEnabled,
   };
 }
+
+/** Updates the guest-facing share affordance through the owner boundary. */
+export async function setGuestSharingEnabled(
+  database: AccessDatabase,
+  userId: string,
+  invitationId: string,
+  enabled: boolean,
+  options: InvitationPasswordChangeOptions = {},
+): Promise<InvitationGuestSharingChangeResult> {
+  const parsedEnabled = z.boolean().parse(enabled);
+  const now = options.now?.() ?? new Date();
+  assertValidDate(now);
+
+  const result = await database.$transaction(async (transaction) => {
+    const invitation = await transaction.invitation.findFirst({
+      where: { id: invitationId, ...ownerMembershipWhere(userId) },
+      select: {
+        id: true,
+        version: true,
+        genericAccessEnabled: true,
+        sharedPasswordHash: true,
+        guestSharingEnabled: true,
+        commercialState: true,
+        trialEndsAt: true,
+        activeUntil: true,
+      },
+    });
+    if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
+    if (!isCommerciallyEditable(invitation.commercialState, invitation.trialEndsAt, now, invitation.activeUntil)) {
+      throw new DomainError(ERROR_CODES.LIFECYCLE_LOCKED);
+    }
+
+    const currentSettings = {
+      invitationId: invitation.id,
+      genericAccessEnabled: invitation.genericAccessEnabled,
+      passwordEnabled: Boolean(invitation.sharedPasswordHash),
+      guestSharingEnabled: invitation.guestSharingEnabled,
+    };
+    if (invitation.guestSharingEnabled === parsedEnabled) {
+      return {
+        ...currentSettings,
+        changed: false,
+        invitationVersion: invitation.version,
+      } satisfies InvitationGuestSharingChangeResult;
+    }
+
+    const updated = await transaction.invitation.updateMany({
+      where: {
+        id: invitationId,
+        version: invitation.version,
+        ...ownerMembershipWhere(userId),
+      },
+      data: {
+        guestSharingEnabled: parsedEnabled,
+        version: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1) throw new DomainError(ERROR_CODES.STALE_VERSION, { retryable: true });
+
+    await writeAuditEvent(transaction, {
+      actorId: userId,
+      invitationId,
+      resourceType: "invitation",
+      resourceId: invitationId,
+      action: "invitation.guest_sharing_changed",
+      metadata: {
+        before_enabled: invitation.guestSharingEnabled,
+        after_enabled: parsedEnabled,
+      },
+      createdAt: now,
+    });
+
+    return {
+      ...currentSettings,
+      guestSharingEnabled: parsedEnabled,
+      changed: true,
+      invitationVersion: invitation.version + 1,
+    } satisfies InvitationGuestSharingChangeResult;
+  });
+
+  if (result.changed && options.cache) await options.cache.invalidateInvitation(invitationId);
+  return result;
+}
+
+export const updateGuestSharing = setGuestSharingEnabled;
 
 /** Bumps accessVersion atomically so prior password sessions stop authorizing. */
 export async function setInvitationSharedPassword(
