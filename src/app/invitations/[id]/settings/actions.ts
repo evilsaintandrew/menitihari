@@ -6,7 +6,11 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { DomainError, toPublicError } from "@/modules/errors";
-import { setInvitationSharedPassword, sharedPasswordSchema } from "@/modules/access";
+import {
+  setGuestSharingEnabled,
+  setInvitationSharedPassword,
+  sharedPasswordSchema,
+} from "@/modules/access";
 import {
   invitationSlugInputSchema,
   updateInvitationSlug,
@@ -61,6 +65,13 @@ export interface InvitationPasswordActionState {
   readonly fieldErrors?: Readonly<{ password?: string; confirmation?: string }>;
 }
 
+export interface GuestSharingActionState {
+  readonly ok: boolean;
+  readonly guestSharingEnabled?: boolean;
+  readonly message?: string;
+  readonly formError?: string;
+}
+
 
 export interface PublicRsvpSettingsActionState {
   readonly ok: boolean;
@@ -72,6 +83,44 @@ export interface PublicRsvpSettingsActionState {
 
 function formString(value: FormDataEntryValue | null): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+export async function updateGuestSharingAction(
+  invitationId: string,
+  _previousState: GuestSharingActionState,
+  formData: FormData,
+): Promise<GuestSharingActionState> {
+  const rawEnabled = formString(formData.get("enabled"));
+  const enabled = rawEnabled === "true" ? true : rawEnabled === "false" ? false : undefined;
+  if (enabled === undefined) {
+    return { ok: false, formError: "Pilihan berbagi tamu belum valid." };
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    return { ok: false, formError: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+  }
+
+  try {
+    const result = await setGuestSharingEnabled(
+      prisma,
+      session.user.id,
+      invitationId,
+      enabled,
+      { cache: nextPublicCacheInvalidator },
+    );
+    revalidatePath(`/invitations/${invitationId}/settings`);
+    return {
+      ok: true,
+      guestSharingEnabled: result.guestSharingEnabled,
+      message: result.guestSharingEnabled
+        ? "Tamu sekarang dapat membagikan link undangan."
+        : "Tamu tidak lagi dapat membagikan link undangan.",
+    };
+  } catch (error) {
+    if (error instanceof DomainError) return { ok: false, formError: toPublicError(error).message };
+    return { ok: false, formError: "Pengaturan berbagi tamu belum tersimpan. Coba lagi." };
+  }
 }
 
 export async function updateInvitationPasswordAction(

@@ -24,6 +24,7 @@ const baseRecord = {
   trialEndsAt: new Date("2026-12-20T00:00:00.000Z"),
   activeUntil: null,
   genericAccessEnabled: true,
+  guestSharingEnabled: true,
   publicRsvpEnabled: false,
   publicRsvpRequireApproval: false,
   publicRsvpRequirePhone: false,
@@ -140,10 +141,13 @@ describe("invitation render data", () => {
 
     expect(result).toMatchObject({
       mode: "personalized",
+      guestSharingEnabled: true,
       guest: { displayName: "Keluarga Santoso" },
       events: [{ id: "event-generic" }],
       rsvp: { enabled: true, events: [{ id: "event-generic", canRespond: true, status: "PENDING", maxPartySize: 3 }] },
     });
+
+    expect(buildInvitationRenderData(baseRecord, "public").guestSharingEnabled).toBe(false);
   });
 
   it("composes a read-only owner preview as a selected guest", async () => {

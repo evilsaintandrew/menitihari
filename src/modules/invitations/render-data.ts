@@ -43,6 +43,7 @@ const invitationRenderSelect = {
   activeUntil: true,
   rsvpEnabled: true,
   genericAccessEnabled: true,
+  guestSharingEnabled: true,
   publicRsvpEnabled: true,
   publicRsvpRequireApproval: true,
   publicRsvpRequirePhone: true,
@@ -117,6 +118,8 @@ export interface InvitationRenderEvent {
 export interface InvitationRenderData {
   readonly invitationId: string;
   readonly mode: InvitationRenderMode;
+  /** Server-authoritative guest share affordance; never included in metadata. */
+  readonly guestSharingEnabled: boolean;
   readonly language: "id" | "en";
   readonly timezone: string;
   readonly themeId: string;
@@ -234,6 +237,7 @@ export function buildInvitationRenderData(
   return {
     invitationId: record.id,
     mode,
+    guestSharingEnabled: mode === "personalized" && record.guestSharingEnabled,
     language: validLanguage(record.language),
     timezone: record.timezone,
     themeId: record.themeId,
@@ -342,7 +346,7 @@ function buildPersonalizedPreviewRenderData(
   // Owner preview is read-only. The personalized invitation renderer remains
   // the presentation entry point, but guest RSVP mutations require a guest
   // session and therefore are intentionally not exposed in this context.
-  return { ...renderData, rsvp: null };
+  return { ...renderData, guestSharingEnabled: false, rsvp: null };
 }
 
 export async function getPublicInvitationPageData(

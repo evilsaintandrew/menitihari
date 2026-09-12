@@ -68,6 +68,47 @@ function distributionLabel(guest: GuestManagementItem): string {
   return labels.join(" · ");
 }
 
+async function copyText(value: string): Promise<void> {
+  if (typeof navigator.clipboard?.writeText === "function") {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "true");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("Clipboard is unavailable");
+}
+
+function CopyPersonalizedLinkAction({ invitationUrl, canEdit }: { readonly invitationUrl: string; readonly canEdit: boolean }) {
+  const [state, setState] = useState<"idle" | "success" | "error">("idle");
+
+  async function handleCopy() {
+    try {
+      await copyText(invitationUrl);
+      setState("success");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="guests-distribution-copy-action">
+      <Button disabled={!canEdit} onClick={() => void handleCopy()} size="sm" type="button" variant="secondary">
+        {state === "success" ? "Link tersalin" : "Salin Link"}
+      </Button>
+      {state === "success" && <p className="guests-distribution-copy-status" role="status">Link personal berhasil disalin.</p>}
+      {state === "error" && <p className="guests-distribution-copy-status" role="alert">Link belum disalin. Salin dari kolom pesan atau coba lagi.</p>}
+    </div>
+  );
+}
+
 function OpenWhatsAppAction({
   invitationId,
   guestId,
@@ -156,7 +197,7 @@ function WhatsAppDistributionPreview({
         <input name="guestId" type="hidden" value={guest.id} />
         <input name="type" type="hidden" value="INVITATION" />
         <Button disabled={!canEdit || pending} size="sm" type="submit" variant="secondary">
-          {pending ? "Membuat pesan…" : "Bagikan"}
+          {pending ? "Membuat pesan…" : guest.displayPhone ? "Bagikan" : "Salin Link"}
         </Button>
       </form>
       {rendered && (
@@ -167,9 +208,12 @@ function WhatsAppDistributionPreview({
             <FieldLabel>Pesan</FieldLabel>
             <Textarea id={`whatsapp-message-${guest.id}`} readOnly rows={6} value={rendered.message} />
           </Field>
-          <p className="guests-distribution-link">
-            Tautan personal: <TextLink href={rendered.invitationUrl} rel="noreferrer" target="_blank">Buka link</TextLink>
-          </p>
+          <div className="guests-distribution-link-row">
+            <p className="guests-distribution-link">
+              Tautan personal: <TextLink href={rendered.invitationUrl} rel="noreferrer" target="_blank">Buka link</TextLink>
+            </p>
+            <CopyPersonalizedLinkAction canEdit={canEdit} invitationUrl={rendered.invitationUrl} />
+          </div>
           <div className="guests-distribution-status">
             <p className="ui-overline">Status distribusi</p>
             <p>{distributionLabel(guest)} · {guest.viewedAt ? "Dilihat" : "Belum Dilihat"}</p>

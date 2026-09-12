@@ -49,6 +49,10 @@ export interface GuestActivationResult {
   readonly expiresAt: Date;
 }
 
+export interface GuestShareLinkResult extends GuestActivationCredentialResult {
+  readonly slug: string;
+}
+
 export interface GuestSessionAccess {
   readonly invitationId: string;
   readonly accessVersion: number;
@@ -237,6 +241,72 @@ export async function issueGuestActivationCredential(
 
 export const regenerateGuestActivationCredential = issueGuestActivationCredential;
 export const createGuestActivationCredential = issueGuestActivationCredential;
+
+/** Issues a fresh one-use link only from an authorized guest session. */
+export async function issueGuestShareLink(
+  database: AccessDatabase,
+  invitationId: string,
+  sessionToken: string,
+  options: ClockOptions = {},
+): Promise<GuestShareLinkResult> {
+  const parsedSessionToken = z.string().min(1).max(256).safeParse(sessionToken);
+  if (!parsedSessionToken.success) invalidActivation();
+
+  const now = options.now?.() ?? new Date();
+  assertValidDate(now);
+
+  return database.$transaction(async (transaction) => {
+    const invitation = await transaction.invitation.findUnique({
+      where: { id: invitationId },
+      select: {
+        id: true,
+        accessVersion: true,
+        guestSharingEnabled: true,
+        publicationState: true,
+        commercialState: true,
+        trialEndsAt: true,
+        activeUntil: true,
+        slugs: {
+          where: { isCanonical: true },
+          select: { slug: true },
+          take: 1,
+        },
+      },
+    });
+    if (!invitation || !invitation.guestSharingEnabled || !isPersonalizedInvitationAvailable(invitation, now)) {
+      invalidActivation();
+    }
+
+    const session = await transaction.guestSession.findFirst({
+      where: {
+        invitationId,
+        sessionDigest: digest(parsedSessionToken.data),
+        accessVersion: invitation.accessVersion,
+        revokedAt: null,
+        expiresAt: { gt: now },
+        guest: { invitationId, archivedAt: null },
+      },
+      select: { guestId: true },
+    });
+    const slug = invitation.slugs[0]?.slug;
+    if (!session || !slug) invalidActivation();
+
+    // Serialize issuance with owner-side regeneration and keep credential
+    // versions monotonic under concurrent share requests.
+    await transaction.invitation.update({
+      where: { id: invitationId },
+      data: { version: { increment: 1 } },
+    });
+
+    const credential = await issueGuestActivationCredentialInTransaction(
+      transaction,
+      invitationId,
+      session.guestId,
+      now,
+    );
+    return { ...credential, slug };
+  });
+}
 
 /**
  * Atomically consumes an issued credential and creates a scoped guest session.

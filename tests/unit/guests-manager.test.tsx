@@ -227,6 +227,26 @@ describe("GuestsManager", () => {
     expect(screen.getByRole("button", { name: "Tandai Terkirim" })).toBeTruthy();
   });
 
+  it("copies the issued personalized link and reports success", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const guest = data().guests[0];
+    render(<GuestsManager data={data({ guests: [{
+      ...guest,
+      assignedEvents: [{ id: "event-1", assignmentId: "assignment-1", name: "Resepsi", maxPartySize: 2, rsvpStatus: null, attendanceCount: null }],
+    }] })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bagikan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salin Link" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Salin Link" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://menitihari.example/alya-bima/g/token"));
+    expect(screen.getByText("Link personal berhasil disalin.")).toBeTruthy();
+  });
+
   it("exposes a manual merge review for duplicate warnings", () => {
     const guests = data().guests;
     render(<GuestsManager data={data({ guests: [
