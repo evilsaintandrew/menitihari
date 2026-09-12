@@ -3,7 +3,12 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
 import { archiveGuest, bulkUpdateGuests, mergeGuests, saveGuest } from "@/modules/guests";
-import { createInvitation } from "@/modules/invitations";
+import {
+  createInvitation,
+  getInvitationPreviewRenderData,
+  getPersonalizedInvitationPageData,
+  publishInvitation,
+} from "@/modules/invitations";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -152,6 +157,40 @@ describe("guest CRUD PostgreSQL integration", () => {
       });
       await expect(testPrisma!.guest.findMany({ where: { id: { in: [first.guestId, second.guestId] }, groupId: group.id, distributionStatus: "MARKED_SENT" } })).resolves.toHaveLength(2);
       await expect(testPrisma!.guestEvent.findFirstOrThrow({ where: { id: assignment.id }, include: { rsvp: true } })).resolves.toMatchObject({ state: "REMOVED", rsvp: { status: "ATTENDING" } });
+    } finally {
+      await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
+      await testPrisma!.invitation.delete({ where: { id: invitation.id } });
+      await testPrisma!.user.delete({ where: { id: owner.id } });
+    }
+  });
+
+  it.skipIf(!testDatabaseUrl)("records viewed state only after a successful personalized render", async () => {
+    const owner = await testPrisma!.user.create({ data: { email: `viewed-${Date.now()}@example.com`, emailVerified: true } });
+    const invitation = await createInvitation(testPrisma!, owner.id, {
+      coupleDisplayName1: "Alya",
+      coupleDisplayName2: "Bima",
+      mainEventDate: "2026-12-20",
+    });
+    try {
+      await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
+      const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Santoso",
+        assignments: [{ eventId: event.id, maxPartySize: 3 }],
+      });
+
+      await expect(getInvitationPreviewRenderData(testPrisma!, owner.id, invitation.id, guest.guestId)).resolves.toMatchObject({
+        mode: "personalized",
+        guest: { displayName: "Keluarga Santoso" },
+      });
+      await expect(testPrisma!.guest.findUniqueOrThrow({ where: { id: guest.guestId }, select: { lastViewedAt: true } })).resolves.toMatchObject({ lastViewedAt: null });
+
+      const viewedAt = new Date("2026-09-12T04:00:00.000Z");
+      await expect(getPersonalizedInvitationPageData(testPrisma!, invitation.id, guest.guestId, viewedAt)).resolves.toMatchObject({
+        mode: "personalized",
+        guest: { displayName: "Keluarga Santoso" },
+      });
+      await expect(testPrisma!.guest.findUniqueOrThrow({ where: { id: guest.guestId }, select: { lastViewedAt: true } })).resolves.toMatchObject({ lastViewedAt: viewedAt });
     } finally {
       await testPrisma!.auditEvent.deleteMany({ where: { invitationId: invitation.id } });
       await testPrisma!.invitation.delete({ where: { id: invitation.id } });

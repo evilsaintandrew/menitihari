@@ -23,7 +23,14 @@ import {
   TextLink,
   Textarea,
 } from "@/components/ui";
-import type { GuestManagementData, GuestManagementItem, GuestRsvpFilter } from "@/modules/guests";
+import type {
+  GuestDistributionFilter,
+  GuestManagementData,
+  GuestManagementItem,
+  GuestRsvpFilter,
+  GuestViewedFilter,
+} from "@/modules/guests";
+import { filterGuestManagementItems } from "@/modules/guests/filters";
 
 import {
   archiveGuestAction,
@@ -55,10 +62,10 @@ function lifecycleLabel(state: GuestManagementData["commercialState"]): string {
 
 function distributionLabel(guest: GuestManagementItem): string {
   const labels = [
-    guest.distributionStatus === "MARKED_SENT" ? "Ditandai Terkirim" : null,
-    guest.whatsappLastOpenedAt ? "WhatsApp Dibuka" : null,
+    guest.distributionStatus === "MARKED_SENT" ? "Ditandai Terkirim" : "Belum Dikirim",
+    guest.whatsappLastOpenedAt || guest.distributionStatus === "WHATSAPP_OPENED" ? "WhatsApp Dibuka" : null,
   ].filter((label): label is string => label !== null);
-  return labels.length > 0 ? labels.join(" · ") : "Belum Dikirim";
+  return labels.join(" · ");
 }
 
 function OpenWhatsAppAction({
@@ -91,6 +98,41 @@ function OpenWhatsAppAction({
         </Button>
       </form>
       {state.message && !state.ok && <Alert role="alert" tone="danger" title={capReached ? "Batas WhatsApp trial tercapai" : "WhatsApp belum dibuka"}>{state.message}</Alert>}
+    </div>
+  );
+}
+
+function ManualDistributionStatusAction({
+  invitationId,
+  guest,
+  canEdit,
+}: {
+  readonly invitationId: string;
+  readonly guest: GuestManagementItem;
+  readonly canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState<GuestActionState, FormData>(bulkUpdateGuestsAction, initialActionState);
+  const markedSent = guest.distributionStatus === "MARKED_SENT";
+
+  useEffect(() => {
+    if (state.ok) router.refresh();
+  }, [router, state.ok]);
+
+  return (
+    <div className="guests-distribution-status-action">
+      <form action={action}>
+        <input name="invitationId" type="hidden" value={invitationId} />
+        <input name="guestIds" type="hidden" value={guest.id} />
+        <input name="operation" type="hidden" value="DISTRIBUTION" />
+        <input name="distributionStatus" type="hidden" value={markedSent ? "NOT_SENT" : "MARKED_SENT"} />
+        <input name="confirmHistoricalRemoval" type="hidden" value="false" />
+        <Button disabled={!canEdit || pending} size="sm" type="submit" variant="secondary">
+          {pending ? "Menyimpan…" : markedSent ? "Tandai Belum Dikirim" : "Tandai Terkirim"}
+        </Button>
+      </form>
+      {state.ok && state.message && <Alert role="status" tone="success" title="Status distribusi diperbarui">{state.message}</Alert>}
+      {!state.ok && state.message && <Alert role="alert" tone="danger" title="Status distribusi belum diperbarui">{state.message}</Alert>}
     </div>
   );
 }
@@ -128,6 +170,11 @@ function WhatsAppDistributionPreview({
           <p className="guests-distribution-link">
             Tautan personal: <TextLink href={rendered.invitationUrl} rel="noreferrer" target="_blank">Buka link</TextLink>
           </p>
+          <div className="guests-distribution-status">
+            <p className="ui-overline">Status distribusi</p>
+            <p>{distributionLabel(guest)} · {guest.viewedAt ? "Dilihat" : "Belum Dilihat"}</p>
+            <ManualDistributionStatusAction canEdit={canEdit} guest={guest} invitationId={invitationId} />
+          </div>
           {rendered.phone ? (
             <OpenWhatsAppAction canEdit={canEdit} guestId={guest.id} invitationId={invitationId} templateType={rendered.templateType} />
           ) : (
@@ -151,11 +198,6 @@ function publicApprovalSummary(event: GuestManagementItem["assignedEvents"][numb
 
 function hasHistoricalAssignment(guest: GuestManagementItem, eventId: string): boolean {
   return guest.assignedEvents.some((event) => event.id === eventId && (event.rsvpStatus !== null || event.attendanceCount !== null));
-}
-
-function filterGuestsByRsvp(guests: readonly GuestManagementItem[], filter: GuestRsvpFilter): readonly GuestManagementItem[] {
-  if (filter === "ALL") return guests;
-  return guests.filter((guest) => guest.assignedEvents.some((event) => event.rsvpStatus === null || event.rsvpStatus === "PENDING"));
 }
 
 function GuestActionMessage({ state }: { readonly state: GuestActionState }) {
@@ -677,10 +719,16 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
 export function GuestsManager({ data }: { readonly data: GuestManagementData }) {
   const [query, setQuery] = useState("");
   const [rsvpFilter, setRsvpFilter] = useState<GuestRsvpFilter>("ALL");
+  const [distributionFilter, setDistributionFilter] = useState<GuestDistributionFilter>("ALL");
+  const [viewedFilter, setViewedFilter] = useState<GuestViewedFilter>("ALL");
   const [adding, setAdding] = useState(data.guests.length === 0);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const normalizedQuery = query.trim().toLocaleLowerCase("id-ID");
-  const guests = filterGuestsByRsvp(data.guests, rsvpFilter).filter((guest) => {
+  const guests = filterGuestManagementItems(data.guests, {
+    rsvp: rsvpFilter,
+    distribution: distributionFilter,
+    viewed: viewedFilter,
+  }).filter((guest) => {
     if (!normalizedQuery) return true;
     return [guest.displayName, guest.displayPhone ?? "", guest.group?.name ?? ""].some((value) => value.toLocaleLowerCase("id-ID").includes(normalizedQuery));
   });
@@ -741,7 +789,14 @@ export function GuestsManager({ data }: { readonly data: GuestManagementData }) 
       {data.events.length > 0 && <section aria-label="Kontrol RSVP" className="guests-rsvp-controls">{data.events.map((event) => <RsvpControlCard canEdit={data.canEdit} event={event} invitationId={data.invitationId} key={event.id} />)}</section>}
       <section aria-label="Kontrol tamu" className="guests-toolbar">
         <Input aria-label="Cari tamu" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor, atau grup…" type="search" value={query} />
-        <div className="guests-toolbar-actions"><Field htmlFor="guest-rsvp-filter"><FieldLabel>Filter RSVP</FieldLabel><Select id="guest-rsvp-filter" onChange={(event) => setRsvpFilter(event.target.value as GuestRsvpFilter)} value={rsvpFilter}><option value="ALL">Semua tamu</option><option value="PENDING">Belum RSVP</option></Select></Field><label className="guests-select-all"><input aria-label="Pilih semua tamu yang tampil" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? new Set([...current].filter((guestId) => !visibleGuestIds.includes(guestId))) : new Set([...current, ...visibleGuestIds]))} type="checkbox" /><span>Pilih tampil</span></label><TextLink className="ui-button ui-button-secondary" href={`/invitations/${data.invitationId}/guests/import`}>Import</TextLink><Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button></div>
+        <div className="guests-toolbar-actions">
+          <Field htmlFor="guest-rsvp-filter"><FieldLabel>Filter RSVP</FieldLabel><Select id="guest-rsvp-filter" onChange={(event) => setRsvpFilter(event.target.value as GuestRsvpFilter)} value={rsvpFilter}><option value="ALL">Semua tamu</option><option value="PENDING">Belum RSVP</option></Select></Field>
+          <Field htmlFor="guest-distribution-filter"><FieldLabel>Filter distribusi</FieldLabel><Select id="guest-distribution-filter" onChange={(event) => setDistributionFilter(event.target.value as GuestDistributionFilter)} value={distributionFilter}><option value="ALL">Semua distribusi</option><option value="NOT_SENT">Belum Dikirim</option><option value="MARKED_SENT">Ditandai Terkirim</option><option value="WHATSAPP_OPENED">WhatsApp Dibuka</option></Select></Field>
+          <Field htmlFor="guest-viewed-filter"><FieldLabel>Filter dilihat</FieldLabel><Select id="guest-viewed-filter" onChange={(event) => setViewedFilter(event.target.value as GuestViewedFilter)} value={viewedFilter}><option value="ALL">Semua tampilan</option><option value="VIEWED">Dilihat</option><option value="NOT_VIEWED">Belum Dilihat</option></Select></Field>
+          <label className="guests-select-all"><input aria-label="Pilih semua tamu yang tampil" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? new Set([...current].filter((guestId) => !visibleGuestIds.includes(guestId))) : new Set([...current, ...visibleGuestIds]))} type="checkbox" /><span>Pilih tampil</span></label>
+          <TextLink className="ui-button ui-button-secondary" href={`/invitations/${data.invitationId}/guests/import`}>Import</TextLink>
+          <Button disabled={!data.canEdit} onClick={() => setAdding((value) => !value)}>{adding ? "Tutup form" : "Tambah tamu"}</Button>
+        </div>
       </section>
       {selectedIds.size > 0 && <BulkActionBar data={data} onComplete={() => setSelectedIds(new Set())} selectedGuestIds={[...selectedIds]} />}
       {adding && <Card className="guests-add-card"><CardHeader><p className="ui-overline">WF-11</p><h2>Tambah tamu</h2><CardDescription>Simpan satu penerima atau party dengan penugasan acara dan kapasitas yang jelas.</CardDescription></CardHeader><GuestForm canEdit={data.canEdit} events={data.events} groups={data.groups} guest={null} invitationId={data.invitationId} onSaved={() => setAdding(false)} /></Card>}

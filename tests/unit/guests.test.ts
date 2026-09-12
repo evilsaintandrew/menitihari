@@ -4,7 +4,10 @@ import { CommercialState, GuestEventState } from "@/generated/prisma/client";
 import {
   archiveGuest,
   bulkUpdateGuests,
+  filterGuestManagementItems,
+  filterGuestsByDistribution,
   filterGuestsByRsvp,
+  filterGuestsByViewed,
   getInvitedPeopleCapacity,
   mergeGuests,
   normalizePhone,
@@ -70,6 +73,21 @@ describe("guest domain", () => {
     ] as never;
     expect(filterGuestsByRsvp(guests, "PENDING")).toHaveLength(2);
     expect(filterGuestsByRsvp(guests, "ALL")).toHaveLength(3);
+  });
+
+  it("keeps manual Sent separate from WhatsApp opened and filters viewed state", () => {
+    const guests = [
+      { id: "unmarked", distributionStatus: "NOT_SENT", whatsappLastOpenedAt: null, viewedAt: null, assignedEvents: [] },
+      { id: "marked", distributionStatus: "MARKED_SENT", whatsappLastOpenedAt: null, viewedAt: "2026-09-12T01:00:00.000Z", assignedEvents: [] },
+      { id: "opened", distributionStatus: "NOT_SENT", whatsappLastOpenedAt: "2026-09-12T02:00:00.000Z", viewedAt: "2026-09-12T03:00:00.000Z", assignedEvents: [] },
+    ] as never;
+
+    expect(filterGuestsByDistribution(guests, "NOT_SENT").map(({ id }: { id: string }) => id)).toEqual(["unmarked", "opened"]);
+    expect(filterGuestsByDistribution(guests, "MARKED_SENT").map(({ id }: { id: string }) => id)).toEqual(["marked"]);
+    expect(filterGuestsByDistribution(guests, "WHATSAPP_OPENED").map(({ id }: { id: string }) => id)).toEqual(["opened"]);
+    expect(filterGuestsByViewed(guests, "VIEWED").map(({ id }: { id: string }) => id)).toEqual(["marked", "opened"]);
+    expect(filterGuestsByViewed(guests, "NOT_VIEWED").map(({ id }: { id: string }) => id)).toEqual(["unmarked"]);
+    expect(filterGuestManagementItems(guests, { rsvp: "ALL", distribution: "NOT_SENT", viewed: "VIEWED" }).map(({ id }: { id: string }) => id)).toEqual(["opened"]);
   });
 
   it("summarizes invited people and marks the final 50 places as near capacity", () => {

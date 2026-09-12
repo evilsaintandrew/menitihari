@@ -498,7 +498,7 @@ export async function getPersonalizedInvitationPageData(
   if (!record || !isPublishedInvitationAvailable(record, now)) return null;
 
   const renderData = buildInvitationRenderData(record, "personalized", { displayName: guest.displayName });
-  return {
+  const pageData = {
     ...renderData,
     rsvp: buildPersonalizedRsvpData(
       record.rsvpEnabled,
@@ -506,4 +506,14 @@ export async function getPersonalizedInvitationPageData(
       now,
     ),
   };
+
+  // A successful personalized render is the only read signal the owner gets.
+  // This is deliberately after the invitation/lifecycle checks and outside the
+  // owner-preview path, which uses getInvitationPreviewRenderData above.
+  await database.guest.updateMany({
+    where: { id: guestId, invitationId, archivedAt: null },
+    data: { lastViewedAt: now },
+  });
+
+  return pageData;
 }

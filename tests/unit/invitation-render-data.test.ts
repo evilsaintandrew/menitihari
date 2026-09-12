@@ -128,6 +128,7 @@ describe("invitation render data", () => {
             },
           }],
         }),
+        updateMany: async () => ({ count: 1 }),
       },
       invitation: {
         findFirst: async ({ where }: { readonly where: { readonly events?: unknown } }) => {
