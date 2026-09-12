@@ -17,6 +17,7 @@ import {
   isUniqueConstraintError,
   suggestInvitationSlug,
 } from "./slugs";
+import { defaultWhatsAppTemplateRows } from "@/modules/whatsapp";
 
 export * from "./publication";
 export * from "./slugs";
@@ -186,6 +187,9 @@ export async function createInvitation(
     });
 
     await transaction.invitationContent.create({ data: { invitationId: invitation.id } });
+    await transaction.whatsAppTemplate.createMany({
+      data: defaultWhatsAppTemplateRows(invitation.id),
+    });
 
     const linkedInvitation = await transaction.invitation.update({
       where: { id: invitation.id },
