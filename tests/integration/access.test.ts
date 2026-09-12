@@ -18,6 +18,7 @@ import {
   setInvitationSharedPassword,
 } from "@/modules/access";
 import { saveGuest } from "@/modules/guests";
+import { getPersonalizedInvitationPageData } from "@/modules/invitations";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 const testPrisma = testDatabaseUrl
@@ -118,9 +119,22 @@ describe("personalized guest activation PostgreSQL integration", () => {
       await publishInvitation(testPrisma!, owner.id, invitation.id, { cache: { invalidateInvitation: () => undefined } });
       await testPrisma!.invitation.update({ where: { id: invitation.id }, data: { genericAccessEnabled: false } });
       const event = await testPrisma!.event.findFirstOrThrow({ where: { invitationId: invitation.id } });
+      const privateEvent = await testPrisma!.event.create({
+        data: {
+          invitationId: invitation.id,
+          name: "Jamuan keluarga",
+          startsAt: new Date("2026-12-20T06:00:00.000Z"),
+          timezone: "Asia/Jakarta",
+          visibility: "PERSONALIZED_ONLY",
+        },
+      });
       const guest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
         displayName: "Keluarga Santoso",
         assignments: [{ eventId: event.id, maxPartySize: 3 }],
+      });
+      const otherGuest = await saveGuest(testPrisma!, owner.id, invitation.id, null, {
+        displayName: "Keluarga Lain",
+        assignments: [{ eventId: privateEvent.id, maxPartySize: 2 }],
       });
 
       const issued = await issueGuestActivationCredential(testPrisma!, owner.id, invitation.id, guest.guestId);
@@ -141,6 +155,36 @@ describe("personalized guest activation PostgreSQL integration", () => {
       const sessionAccess = await getGuestSessionAccess(testPrisma!, invitation.id, activated.sessionToken);
       expect(sessionAccess).toMatchObject({ authorized: true, guestId: guest.guestId, invitationId: invitation.id });
       await expect(getGuestSessionAccess(testPrisma!, invitation.id, "wrong-session")).resolves.toMatchObject({ authorized: false, guestId: null });
+
+      await expect(getPersonalizedInvitationPageData(testPrisma!, invitation.id, guest.guestId)).resolves.toMatchObject({
+        mode: "personalized",
+        guest: { displayName: "Keluarga Santoso" },
+        events: [{ id: event.id }],
+      });
+      await expect(getPersonalizedInvitationPageData(testPrisma!, invitation.id, otherGuest.guestId)).resolves.toMatchObject({
+        guest: { displayName: "Keluarga Lain" },
+        events: [{ id: privateEvent.id }],
+      });
+
+      await setInvitationSharedPassword(testPrisma!, owner.id, invitation.id, "rahasia-personal", { now: () => new Date("2026-09-12T00:00:00.000Z") });
+      await expect(getInvitationPasswordAccess(testPrisma!, invitation.id, undefined, new Date("2026-09-12T00:00:00.000Z"), { mode: "personalized" })).resolves.toMatchObject({
+        available: true,
+        passwordRequired: true,
+        authorized: false,
+      });
+      const personalizedPasswordSession = await createInvitationPasswordSession(
+        testPrisma!,
+        invitation.id,
+        "rahasia-personal",
+        { now: () => new Date("2026-09-12T00:00:00.000Z"), mode: "personalized" },
+      );
+      await expect(getInvitationPasswordAccess(
+        testPrisma!,
+        invitation.id,
+        personalizedPasswordSession.sessionToken,
+        new Date("2026-09-12T00:00:00.000Z"),
+        { mode: "personalized" },
+      )).resolves.toMatchObject({ available: true, authorized: true });
 
       const regenerated = await issueGuestActivationCredential(testPrisma!, owner.id, invitation.id, guest.guestId);
       expect(regenerated.version).toBe(2);

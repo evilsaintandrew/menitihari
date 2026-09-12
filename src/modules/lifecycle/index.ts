@@ -157,6 +157,20 @@ export function isPublicInvitationAvailable(input: {
   readonly trialEndsAt?: Date | null;
   readonly activeUntil?: Date | null;
 }, now = new Date()): boolean {
+  return input.genericAccessEnabled && isPublishedInvitationAvailable(input, now);
+}
+
+/**
+ * Personalized guests may access a published invitation even when the owner
+ * has disabled the generic URL. The caller must still enforce guest-session
+ * scope before using this predicate.
+ */
+export function isPublishedInvitationAvailable(input: {
+  readonly publicationState: PublicationState;
+  readonly commercialState: CommercialState;
+  readonly trialEndsAt?: Date | null;
+  readonly activeUntil?: Date | null;
+}, now = new Date()): boolean {
   const activeCommercialState =
     (input.commercialState === CommercialState.PAID_ACTIVE &&
       !isPaidExpired(input.activeUntil, now)) ||
@@ -165,9 +179,7 @@ export function isPublicInvitationAvailable(input: {
       input.trialEndsAt !== undefined &&
       !isTrialExpired(input.trialEndsAt, now));
 
-  return input.publicationState === PublicationState.PUBLISHED &&
-    input.genericAccessEnabled &&
-    activeCommercialState;
+  return input.publicationState === PublicationState.PUBLISHED && activeCommercialState;
 }
 
 export function getInvitationLifecycleCapabilities(

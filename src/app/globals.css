@@ -508,6 +508,8 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-renderer-cover::before, .invitation-renderer-cover::after { border: 1px solid var(--invitation-accent); border-radius: 50%; content: ""; opacity: .24; position: absolute; }
 .invitation-renderer-cover::before { height: 260px; right: -100px; top: -100px; width: 260px; }
 .invitation-renderer-cover::after { bottom: -90px; height: 260px; left: -110px; width: 260px; }
+.invitation-renderer-addressee { display: grid; gap: 4px; margin-bottom: 12px; }
+.invitation-renderer-addressee p:last-child { font-size: 20px; font-weight: 800; }
 .invitation-cover-framed .invitation-renderer-cover { margin: 24px; min-height: 342px; outline: 1px solid var(--invitation-accent); outline-offset: -18px; }
 .invitation-cover-full-bleed .invitation-renderer-cover { background: color-mix(in srgb, var(--invitation-accent) 14%, var(--invitation-background)); }
 .invitation-renderer-kicker { color: var(--invitation-accent); font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }

@@ -8,10 +8,17 @@ import {
   initialInvitationPasswordGateState,
   submitInvitationPasswordAction,
 } from "./password-actions";
+import type { InvitationPasswordAccessMode } from "@/modules/access";
 
-export function InvitationPasswordGate({ invitationId }: { readonly invitationId: string }) {
+export function InvitationPasswordGate({
+  invitationId,
+  mode = "generic",
+}: {
+  readonly invitationId: string;
+  readonly mode?: InvitationPasswordAccessMode;
+}) {
   const [state, formAction, pending] = useActionState(
-    submitInvitationPasswordAction.bind(null, invitationId),
+    submitInvitationPasswordAction.bind(null, invitationId, mode),
     initialInvitationPasswordGateState,
   );
 

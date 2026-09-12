@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { EventVisibility } from "@/generated/prisma/client";
 import {
   buildInvitationRenderData,
+  getPersonalizedInvitationPageData,
   type InvitationRenderRecord,
 } from "@/modules/invitations";
 
@@ -81,6 +82,35 @@ describe("invitation render data", () => {
     expect(preview.content.optional.opening).toBe("Selamat datang");
     expect(preview.events.map(({ id }) => id)).toEqual(["event-generic"]);
     expect(publicData.events.map(({ id }) => id)).toEqual(["event-generic"]);
+    expect(publicData.guest).toBeNull();
+  });
+
+  it("composes a scoped guest identity and only the assigned events", async () => {
+    const invitation = {
+      ...baseRecord,
+      genericAccessEnabled: false,
+      events: [baseRecord.events[0]],
+    };
+    const result = await getPersonalizedInvitationPageData({
+      guest: {
+        findFirst: async () => ({
+          displayName: "Keluarga Santoso",
+          eventAssignments: [{ eventId: "event-generic" }],
+        }),
+      },
+      invitation: {
+        findFirst: async ({ where }: { readonly where: { readonly events?: unknown } }) => {
+          expect(where.events).toMatchObject({ some: { id: { in: ["event-generic"] } } });
+          return invitation;
+        },
+      },
+    } as never, "invitation-1", "guest-1", new Date("2026-09-13T00:00:00.000Z"));
+
+    expect(result).toMatchObject({
+      mode: "personalized",
+      guest: { displayName: "Keluarga Santoso" },
+      events: [{ id: "event-generic" }],
+    });
   });
 
   it("keeps a cancelled generic event with its message but removes archived events", () => {
