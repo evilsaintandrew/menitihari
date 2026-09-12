@@ -422,6 +422,19 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .guests-capacity-heading h2 { font-size: 22px; margin-top: 4px; }
 .guests-capacity-warning { color: var(--color-danger); font-size: 14px; font-weight: 700; }
 .guests-toolbar { align-items: center; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 18px; }
+.guests-rsvp-controls { display: grid; gap: 18px; margin: 0 auto 18px; max-width: 1080px; }
+.guests-rsvp-control-card { overflow: visible; }
+.guests-rsvp-control-heading { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
+.guests-rsvp-control-heading h2 { font-size: 21px; margin-top: 4px; }
+.guests-rsvp-control-body { display: grid; gap: 14px; padding: 0 18px 18px; }
+.guests-rsvp-schedule-form { align-items: end; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; }
+.guests-rsvp-date-fields { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.guests-rsvp-control-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.guests-rsvp-override-list { border-top: 1px solid var(--color-border); display: grid; gap: 12px; padding-top: 14px; }
+.guests-rsvp-override { background: var(--color-surface-muted); border-radius: 14px; display: grid; gap: 10px; padding: 12px; }
+.guests-rsvp-override-heading { display: flex; flex-wrap: wrap; gap: 5px 12px; justify-content: space-between; }
+.guests-rsvp-override-heading span { color: var(--color-ink-muted); font-size: 12px; }
+.guests-rsvp-override-form { align-items: end; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(120px, .65fr) auto; }
 .guests-add-card { margin-bottom: 18px; }
 .guests-add-card > .guests-form { border-top: 1px solid var(--color-border); margin-top: 22px; padding-top: 22px; }
 .guests-list { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -502,6 +515,8 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .guests-toolbar { grid-template-columns: 1fr; }
   .guests-toolbar .ui-button { width: 100%; }
   .guests-select-all { justify-content: center; }
+  .guests-rsvp-schedule-form, .guests-rsvp-override-form { grid-template-columns: 1fr; }
+  .guests-rsvp-control-actions .ui-button { width: 100%; }
 }
 .invitation-renderer { background: var(--invitation-background); border: 1px solid color-mix(in srgb, var(--invitation-accent) 35%, transparent); border-radius: 28px; box-shadow: 0 24px 80px rgb(33 22 76 / 12%); color: var(--invitation-foreground); margin: 0 auto; overflow: hidden; }
 .invitation-renderer-cover { align-items: center; display: grid; gap: 12px; min-height: 390px; padding: clamp(48px, 10vw, 92px) 28px; place-content: center; position: relative; text-align: center; }
