@@ -110,7 +110,9 @@ Maximum 5 active/non-deleted events per invitation.
 -   optional notes
 -   `group_id`
 -   default max party size
--   distribution/view summary fields
+-   owner-maintained distribution status and viewed timestamp
+-   WhatsApp opened summary: first opened timestamp, last opened timestamp,
+    and aggregate open count; this is not a permanent click history
 -   archive fields
 -   optional merged-into guest reference and merge timestamp
 -   timestamps

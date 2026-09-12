@@ -28,8 +28,10 @@ import {
   setOwnerRsvpControl,
 } from "@/modules/rsvp";
 import {
+  openWhatsApp,
   renderWhatsAppMessage,
   renderWhatsAppMessageInputSchema,
+  type OpenedWhatsAppMessage,
   type RenderedWhatsAppMessage,
 } from "@/modules/whatsapp";
 import { prisma } from "@/server/db";
@@ -65,6 +67,13 @@ export interface RsvpActionState {
 export interface WhatsAppRenderActionState {
   readonly ok: boolean;
   readonly rendered?: RenderedWhatsAppMessage;
+  readonly errorCode?: string;
+  readonly message?: string;
+}
+
+export interface WhatsAppOpenActionState {
+  readonly ok: boolean;
+  readonly opened?: OpenedWhatsAppMessage;
   readonly errorCode?: string;
   readonly message?: string;
 }
@@ -195,6 +204,47 @@ export async function renderWhatsAppMessageAction(
       };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Pesan personal belum dapat dibuat. Coba lagi." };
+  }
+}
+
+export async function openWhatsAppAction(
+  _previousState: WhatsAppOpenActionState,
+  formData: FormData,
+): Promise<WhatsAppOpenActionState> {
+  const parsed = renderWhatsAppMessageInputSchema.safeParse({
+    type: stringValue(formData, "type") || WhatsAppTemplateType.INVITATION,
+    eventId: optionalFormValue(formData, "eventId"),
+  });
+  if (!parsed.success) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Template pesan belum valid." };
+
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    const opened = await openWhatsApp(
+      prisma,
+      userId,
+      stringValue(formData, "invitationId"),
+      stringValue(formData, "guestId"),
+      parsed.data,
+      { baseUrl: env.NEXT_PUBLIC_APP_URL },
+    );
+    return { ok: true, opened };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Template pesan belum valid." };
+    if (error instanceof DomainError) {
+      const publicError = toPublicError(error);
+      return {
+        ok: false,
+        errorCode: publicError.code,
+        message: publicError.code === "VALIDATION_FAILED"
+          ? "Nomor WhatsApp belum diisi atau tidak valid."
+          : publicError.code === "NOT_INVITED_TO_EVENT"
+            ? "Tamu belum memiliki penugasan acara yang aktif."
+            : publicError.message,
+      };
+    }
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "WhatsApp belum dapat dibuka. Coba lagi." };
   }
 }
 

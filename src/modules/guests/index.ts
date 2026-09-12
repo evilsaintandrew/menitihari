@@ -136,6 +136,9 @@ export interface GuestManagementItem {
   readonly assignedEvents: readonly GuestEventSummary[];
   readonly distributionStatus: GuestDistributionStatus;
   readonly viewedAt: string | null;
+  readonly whatsappFirstOpenedAt: string | null;
+  readonly whatsappLastOpenedAt: string | null;
+  readonly whatsappOpenedCount: number;
   readonly duplicateWarnings?: readonly GuestDuplicateWarning[];
   readonly createdAt: string;
 }
@@ -280,6 +283,9 @@ const managementSelect = {
       notes: true,
       distributionStatus: true,
       lastViewedAt: true,
+      whatsappFirstOpenedAt: true,
+      whatsappLastOpenedAt: true,
+      whatsappOpenedCount: true,
       createdAt: true,
       group: { select: { id: true, name: true } },
       eventAssignments: {
@@ -447,6 +453,9 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
     notes: guest.notes,
     distributionStatus: guest.distributionStatus,
     viewedAt: guest.lastViewedAt,
+    whatsappFirstOpenedAt: guest.whatsappFirstOpenedAt,
+    whatsappLastOpenedAt: guest.whatsappLastOpenedAt,
+    whatsappOpenedCount: guest.whatsappOpenedCount,
     group: guest.group,
     assignedEvents: guest.eventAssignments.map((assignment) => ({
       id: assignment.event.id,
@@ -498,10 +507,11 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
       assignedEvents: guest.assignedEvents,
       distributionStatus: guest.distributionStatus === "MARKED_SENT"
         ? "MARKED_SENT"
-        : guest.distributionStatus === "WHATSAPP_OPENED"
-          ? "WHATSAPP_OPENED"
-          : "NOT_SENT",
+        : "NOT_SENT",
       viewedAt: guest.viewedAt?.toISOString() ?? null,
+      whatsappFirstOpenedAt: guest.whatsappFirstOpenedAt?.toISOString() ?? null,
+      whatsappLastOpenedAt: guest.whatsappLastOpenedAt?.toISOString() ?? null,
+      whatsappOpenedCount: guest.whatsappOpenedCount,
       duplicateWarnings: guests
         .filter((candidate) => candidate.id !== guest.id)
         .map((candidate) => ({

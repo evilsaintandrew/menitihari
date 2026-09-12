@@ -7,6 +7,7 @@ import {
   WHATSAPP_TEMPLATE_PLACEHOLDERS,
   defaultWhatsAppTemplateRows,
   buildPersonalizedInvitationUrl,
+  buildWhatsAppUrl,
   extractWhatsAppTemplatePlaceholders,
   renderWhatsAppTemplateBody,
   updateWhatsAppTemplateInputSchema,
@@ -60,6 +61,11 @@ describe("WhatsApp templates", () => {
       event_time: "13.00",
       event_venue: "Gedung A",
     })).toBe(`Hai Keluarga Santoso, Resepsi.\n\nLihat undangan: ${invitationUrl}`);
+  });
+
+  it("builds a wa.me link from the canonical phone and encoded message", () => {
+    expect(buildWhatsAppUrl("+6281234567890", "Hai Keluarga Santoso!"))
+      .toBe("https://wa.me/6281234567890?text=Hai%20Keluarga%20Santoso!");
   });
 
   it("rejects unknown placeholders again at render time", () => {
