@@ -6,9 +6,11 @@ import type { PublicationState } from "@/generated/prisma/client";
 import { Alert, Button } from "@/components/ui";
 
 import {
-  initialPublicationActionState,
   publicationAction,
 } from "./actions";
+import type { PublicationActionState } from "./actions";
+
+const initialPublicationActionState: PublicationActionState = { ok: false };
 
 interface PublishFormProps {
   readonly invitationId: string;

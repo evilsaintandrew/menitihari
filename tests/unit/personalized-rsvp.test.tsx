@@ -24,6 +24,7 @@ const event = {
   attendanceCount: null,
   notAttendingReason: null,
   canRespond: true,
+  qrEligibility: "NOT_ELIGIBLE",
 };
 
 const invitation: InvitationRenderData = {

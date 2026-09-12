@@ -19,7 +19,6 @@ export interface InvitationPasswordGateState {
   readonly fieldError?: string;
 }
 
-export const initialInvitationPasswordGateState: InvitationPasswordGateState = { ok: false };
 
 function formString(value: FormDataEntryValue | null): string | undefined {
   return typeof value === "string" ? value : undefined;

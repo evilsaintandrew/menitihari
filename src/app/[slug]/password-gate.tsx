@@ -5,10 +5,12 @@ import { useActionState } from "react";
 import { Alert, Button, Card, CardContent, CardHeader, Field, FieldError, FieldLabel, Input } from "@/components/ui";
 
 import {
-  initialInvitationPasswordGateState,
   submitInvitationPasswordAction,
 } from "./password-actions";
 import type { InvitationPasswordAccessMode } from "@/modules/access";
+import type { InvitationPasswordGateState } from "./password-actions";
+
+const initialInvitationPasswordGateState: InvitationPasswordGateState = { ok: false };
 
 export function InvitationPasswordGate({
   invitationId,

@@ -52,7 +52,6 @@ export interface InvitationSlugActionState {
   readonly fieldErrors?: Readonly<{ slug?: string }>;
 }
 
-export const initialInvitationSlugActionState: InvitationSlugActionState = { ok: false };
 
 export interface InvitationPasswordActionState {
   readonly ok: boolean;
@@ -62,7 +61,6 @@ export interface InvitationPasswordActionState {
   readonly fieldErrors?: Readonly<{ password?: string; confirmation?: string }>;
 }
 
-export const initialInvitationPasswordActionState: InvitationPasswordActionState = { ok: false };
 
 export interface PublicRsvpSettingsActionState {
   readonly ok: boolean;
@@ -71,7 +69,6 @@ export interface PublicRsvpSettingsActionState {
   readonly formError?: string;
 }
 
-export const initialPublicRsvpSettingsActionState: PublicRsvpSettingsActionState = { ok: false };
 
 function formString(value: FormDataEntryValue | null): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -183,6 +180,7 @@ export async function updatePublicRsvpSettingsAction(
   const eventIds = formData.getAll("eventIds").filter((value): value is string => typeof value === "string");
   const parsed = publicRsvpSettingsInputSchema.safeParse({
     enabled: formData.get("enabled") === "on",
+    requireApproval: formData.get("approvalMode") === "approval",
     requirePhone: formData.get("identityMode") === "phone",
     maxPartySize: Number(formData.get("maxPartySize")),
     eventIds,

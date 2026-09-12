@@ -41,6 +41,7 @@ const invitationRenderSelect = {
   activeUntil: true,
   genericAccessEnabled: true,
   publicRsvpEnabled: true,
+  publicRsvpRequireApproval: true,
   publicRsvpRequirePhone: true,
   publicRsvpMaxPartySize: true,
   content: {
@@ -328,7 +329,9 @@ export async function getPersonalizedInvitationPageData(
           eventId: true,
           maxPartySize: true,
           rsvpEligible: true,
-          rsvp: { select: { status: true, attendanceCount: true, notAttendingReason: true } },
+          checkInEligible: true,
+          publicRsvpApproval: true,
+          rsvp: { select: { status: true, attendanceCount: true, notAttendingReason: true, source: true } },
           event: {
             select: {
               id: true,

@@ -299,6 +299,7 @@ model Invitation {
   guestSharingEnabled  Boolean          @default(true) @map("guest_sharing_enabled")
   rsvpEnabled          Boolean          @default(true) @map("rsvp_enabled")
   publicRsvpEnabled    Boolean          @default(false) @map("public_rsvp_enabled")
+  publicRsvpRequireApproval Boolean      @default(false) @map("public_rsvp_require_approval")
   publicRsvpRequirePhone Boolean        @default(false) @map("public_rsvp_require_phone")
   publicRsvpMaxPartySize Int            @default(1) @map("public_rsvp_max_party_size")
   guestbookEnabled     Boolean          @default(true) @map("guestbook_enabled")

@@ -26,7 +26,6 @@ export interface PublicationActionState {
   readonly fieldErrors?: Readonly<Record<string, string>>;
 }
 
-export const initialPublicationActionState: PublicationActionState = { ok: false };
 
 export async function publicationAction(
   invitationId: string,

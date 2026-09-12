@@ -160,8 +160,17 @@ override.
 
 Access: public, rate-limited.\
 Behavior: verify enabled/event/capacity; create guest + assignments +
-RSVP; flag duplicates; return personalized link credential according to
-access policy.
+RSVP; flag duplicates; apply the invitation's auto-eligibility or pending
+approval policy to QR/check-in eligibility; return personalized link
+credential according to access policy.
+
+### Approve public RSVP eligibility
+
+Auth: owner membership.\
+Input: guest-event assignment and `APPROVE` or `REJECT` decision.\
+Behavior: verify the assignment belongs to a public-RSVP guest, update only
+approval/check-in eligibility fields in one transaction, and append a minimal
+audit event. Guest identity and contact fields are never changed.
 
 ### Check in
 

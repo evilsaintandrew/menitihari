@@ -14,10 +14,11 @@ import {
 import type { PublicRsvpData } from "@/modules/rsvp";
 
 import {
-  initialSubmitPublicRsvpActionState,
   submitPublicRsvpAction,
   type SubmitPublicRsvpActionState,
 } from "@/app/[slug]/rsvp-actions";
+
+const initialSubmitPublicRsvpActionState: SubmitPublicRsvpActionState = { ok: false };
 
 export function PublicRsvp({
   invitationId,
@@ -84,8 +85,8 @@ export function PublicRsvp({
             />
             <span className="ui-field-hint">Maksimal {data.maxPartySize} orang.</span>
           </Field>
-          <div className="public-rsvp-events" aria-label="Acara yang menerima RSVP">
-            <strong>Acara</strong>
+          <div aria-labelledby="public-rsvp-events-label" className="public-rsvp-events" role="group">
+            <strong id="public-rsvp-events-label">Acara</strong>
             <ul>
               {data.events.map((event) => <li key={event.id}>{event.name}</li>)}
             </ul>
@@ -105,6 +106,9 @@ export function PublicRsvp({
           <div className="public-rsvp-confirmation">
             <p>Terima kasih. Jawaban Anda sudah tersimpan.</p>
             <p className="public-rsvp-event-summary"><strong>Acara:</strong> {state.result.events.map((event) => event.name).join(", ")}</p>
+            {state.result.approvalPending && (
+              <p role="status">Menunggu persetujuan untuk QR check-in.</p>
+            )}
             {state.result.duplicateWarning && (
               <Alert tone="warning" title="Perlu diperiksa">Data ini mungkin sudah pernah didaftarkan. Pasangan dapat memeriksanya tanpa menggabungkan data secara otomatis.</Alert>
             )}

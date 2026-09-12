@@ -2,8 +2,10 @@ import {
   CommercialState,
   EventVisibility,
   GuestEventState,
+  PublicRsvpApprovalState,
   Prisma,
   RsvpStatus,
+  RsvpSource,
   type PrismaClient,
 } from "@/generated/prisma/client";
 import { issueGuestActivationCredentialInTransaction } from "@/modules/access";
@@ -38,6 +40,7 @@ export type PublicRsvpInput = z.input<typeof publicRsvpInputSchema>;
 
 export const publicRsvpSettingsInputSchema = z.object({
   enabled: z.boolean(),
+  requireApproval: z.boolean(),
   requirePhone: z.boolean(),
   maxPartySize: z.number().int().min(1).max(INVITED_PEOPLE_LIMIT),
   eventIds: z.array(z.string().trim().min(1).max(128)).max(5).superRefine((eventIds, context) => {
@@ -61,6 +64,7 @@ export interface PublicRsvpEvent {
 
 export interface PublicRsvpData {
   readonly enabled: boolean;
+  readonly approvalRequired: boolean;
   readonly requirePhone: boolean;
   readonly maxPartySize: number;
   readonly events: readonly PublicRsvpEvent[];
@@ -80,6 +84,7 @@ export interface PublicRsvpOwnerEvent {
 export interface PublicRsvpOwnerSettings {
   readonly invitationId: string;
   readonly enabled: boolean;
+  readonly requireApproval: boolean;
   readonly requirePhone: boolean;
   readonly maxPartySize: number;
   readonly events: readonly PublicRsvpOwnerEvent[];
@@ -90,6 +95,7 @@ export interface PublicRsvpMutationResult {
   readonly guestId: string;
   readonly personalizedPath: string;
   readonly duplicateWarning: boolean;
+  readonly approvalPending: boolean;
   readonly events: readonly PublicRsvpEvent[];
 }
 
@@ -120,6 +126,7 @@ export function buildPublicRsvpData(
   input: {
     readonly genericAccessEnabled: boolean;
     readonly publicRsvpEnabled: boolean;
+    readonly publicRsvpRequireApproval: boolean;
     readonly publicRsvpRequirePhone: boolean;
     readonly publicRsvpMaxPartySize: number;
   },
@@ -135,6 +142,7 @@ export function buildPublicRsvpData(
   const enabled = input.genericAccessEnabled && input.publicRsvpEnabled;
   return {
     enabled,
+    approvalRequired: input.publicRsvpRequireApproval,
     requirePhone: input.publicRsvpRequirePhone,
     maxPartySize: input.publicRsvpMaxPartySize,
     events: acceptingEvents,
@@ -182,7 +190,10 @@ export interface PersonalizedRsvpEvent {
   readonly attendanceCount: number | null;
   readonly notAttendingReason: string | null;
   readonly canRespond: boolean;
+  readonly qrEligibility: QrEligibility;
 }
+
+export type QrEligibility = "ELIGIBLE" | "PENDING_APPROVAL" | "NOT_ELIGIBLE";
 
 export interface PersonalizedRsvpData {
   readonly enabled: boolean;
@@ -194,6 +205,7 @@ export interface RsvpSummaryItem {
   readonly eventName: string;
   readonly status: RsvpStatus;
   readonly attendanceCount: number | null;
+  readonly qrEligibility?: QrEligibility;
 }
 
 export interface RsvpMutationResult {
@@ -218,10 +230,13 @@ export interface PersonalizedRsvpAssignmentRecord {
   readonly eventId: string;
   readonly maxPartySize: number;
   readonly rsvpEligible: boolean;
+  readonly checkInEligible: boolean;
+  readonly publicRsvpApproval: PublicRsvpApprovalState;
   readonly rsvp: {
     readonly status: RsvpStatus;
     readonly attendanceCount: number | null;
     readonly notAttendingReason: string | null;
+    readonly source: RsvpSource;
   } | null;
   readonly event: RsvpEventRecord;
 }
@@ -241,6 +256,17 @@ function isRsvpOpen(
     assignment.event.cancelledAt === null &&
     (assignment.event.endsAt === null || assignment.event.endsAt.getTime() > now.getTime()) &&
     (assignment.event.rsvpClosesAt === null || assignment.event.rsvpClosesAt.getTime() > now.getTime());
+}
+
+function getQrEligibility(
+  assignment: Pick<PersonalizedRsvpAssignmentRecord, "publicRsvpApproval" | "checkInEligible" | "rsvp">,
+): QrEligibility {
+  if (assignment.rsvp?.status !== RsvpStatus.ATTENDING || !assignment.checkInEligible) {
+    return assignment.rsvp?.source === RsvpSource.PUBLIC && assignment.publicRsvpApproval === PublicRsvpApprovalState.PENDING
+      ? "PENDING_APPROVAL"
+      : "NOT_ELIGIBLE";
+  }
+  return "ELIGIBLE";
 }
 
 export function buildPersonalizedRsvpData(
@@ -269,6 +295,7 @@ export function buildPersonalizedRsvpData(
           ? assignment.rsvp.notAttendingReason
           : null,
         canRespond: isRsvpOpen(invitationEnabled, assignment, now),
+        qrEligibility: getQrEligibility(assignment),
       })),
   };
 }
@@ -289,7 +316,9 @@ const assignmentSelect = {
   eventId: true,
   maxPartySize: true,
   rsvpEligible: true,
-  rsvp: { select: { status: true, attendanceCount: true, notAttendingReason: true } },
+  checkInEligible: true,
+  publicRsvpApproval: true,
+  rsvp: { select: { status: true, attendanceCount: true, notAttendingReason: true, source: true } },
   event: {
     select: {
       id: true,
@@ -371,6 +400,10 @@ export async function submitPersonalizedRsvp(
 
     for (const response of parsed.responses) {
       const assignment = assignmentsByEventId.get(response.eventId)!;
+      const isPublicRsvp = assignment.rsvp?.source === RsvpSource.PUBLIC;
+      const nextCheckInEligible = isPublicRsvp &&
+        response.status === RsvpStatus.ATTENDING &&
+        assignment.publicRsvpApproval === PublicRsvpApprovalState.APPROVED;
       await transaction.rSVP.upsert({
         where: { guestEventId: assignment.id },
         create: {
@@ -378,7 +411,7 @@ export async function submitPersonalizedRsvp(
           status: response.status,
           attendanceCount: response.status === RsvpStatus.ATTENDING ? response.attendanceCount : null,
           notAttendingReason: response.status === RsvpStatus.NOT_ATTENDING ? response.notAttendingReason || null : null,
-          source: "PERSONALIZED",
+          source: isPublicRsvp ? RsvpSource.PUBLIC : RsvpSource.PERSONALIZED,
           ownerOverride: false,
           updatedBy: guestId,
         },
@@ -386,11 +419,31 @@ export async function submitPersonalizedRsvp(
           status: response.status,
           attendanceCount: response.status === RsvpStatus.ATTENDING ? response.attendanceCount : null,
           notAttendingReason: response.status === RsvpStatus.NOT_ATTENDING ? response.notAttendingReason || null : null,
-          source: "PERSONALIZED",
+          source: isPublicRsvp ? RsvpSource.PUBLIC : RsvpSource.PERSONALIZED,
           ownerOverride: false,
           updatedBy: guestId,
         },
       });
+      if (isPublicRsvp && assignment.checkInEligible !== nextCheckInEligible) {
+        await transaction.guestEvent.update({
+          where: { id: assignment.id },
+          data: { checkInEligible: nextCheckInEligible },
+        });
+        await writeAuditEvent(transaction, {
+          actorId: null,
+          invitationId,
+          resourceType: "guest_event",
+          resourceId: assignment.id,
+          action: "guest.public_rsvp_eligibility_updated",
+          metadata: {
+            approval_state: assignment.publicRsvpApproval,
+            previous_check_in_eligible: assignment.checkInEligible,
+            check_in_eligible: nextCheckInEligible,
+            rsvp_status: response.status,
+          },
+          createdAt: now,
+        });
+      }
     }
 
     const summary = await transaction.guestEvent.findMany({
@@ -398,8 +451,10 @@ export async function submitPersonalizedRsvp(
       orderBy: { event: { startsAt: "asc" } },
       select: {
         eventId: true,
+        checkInEligible: true,
+        publicRsvpApproval: true,
         event: { select: { name: true } },
-        rsvp: { select: { status: true, attendanceCount: true } },
+        rsvp: { select: { status: true, source: true, attendanceCount: true } },
       },
     });
 
@@ -411,6 +466,11 @@ export async function submitPersonalizedRsvp(
         eventName: item.event.name,
         status: item.rsvp?.status ?? RsvpStatus.PENDING,
         attendanceCount: item.rsvp?.status === RsvpStatus.ATTENDING ? item.rsvp.attendanceCount : null,
+        qrEligibility: item.rsvp?.status === RsvpStatus.ATTENDING && item.rsvp.source === RsvpSource.PUBLIC && item.checkInEligible
+          ? "ELIGIBLE"
+          : item.rsvp?.status === RsvpStatus.ATTENDING && item.rsvp.source === RsvpSource.PUBLIC && item.publicRsvpApproval === PublicRsvpApprovalState.PENDING
+            ? "PENDING_APPROVAL"
+            : "NOT_ELIGIBLE",
       })),
     };
   });
@@ -421,6 +481,7 @@ export const submitRsvp = submitPersonalizedRsvp;
 const publicRsvpOwnerSelect = {
   id: true,
   publicRsvpEnabled: true,
+  publicRsvpRequireApproval: true,
   publicRsvpRequirePhone: true,
   publicRsvpMaxPartySize: true,
   events: {
@@ -458,6 +519,7 @@ function toPublicRsvpOwnerSettings(record: PublicRsvpOwnerRecord): PublicRsvpOwn
   return {
     invitationId: record.id,
     enabled: record.publicRsvpEnabled,
+    requireApproval: record.publicRsvpRequireApproval,
     requirePhone: record.publicRsvpRequirePhone,
     maxPartySize: record.publicRsvpMaxPartySize,
     events: record.events.map((event) => ({
@@ -527,6 +589,7 @@ export async function setPublicRsvpSettings(
       where: { id: invitationId },
       data: {
         publicRsvpEnabled: parsed.enabled,
+        publicRsvpRequireApproval: parsed.requireApproval,
         publicRsvpRequirePhone: parsed.requirePhone,
         publicRsvpMaxPartySize: parsed.maxPartySize,
         version: { increment: 1 },
@@ -551,6 +614,7 @@ export async function setPublicRsvpSettings(
       action: "invitation.public_rsvp_updated",
       metadata: {
         enabled: parsed.enabled,
+        require_approval: parsed.requireApproval,
         require_contact_number: parsed.requirePhone,
         max_party_size: parsed.maxPartySize,
         event_count: parsed.eventIds.length,
@@ -594,6 +658,7 @@ export async function submitPublicRsvp(
         id: true,
         genericAccessEnabled: true,
         publicRsvpEnabled: true,
+        publicRsvpRequireApproval: true,
         publicRsvpRequirePhone: true,
         publicRsvpMaxPartySize: true,
         publicationState: true,
@@ -651,6 +716,9 @@ export async function submitPublicRsvp(
     }
 
     const duplicateWarning = await hasGuestDuplicateWarning(transaction, invitationId, normalizedName, normalizedPhone);
+    const publicRsvpApproval = invitation.publicRsvpRequireApproval
+      ? PublicRsvpApprovalState.PENDING
+      : PublicRsvpApprovalState.APPROVED;
     const guest = await transaction.guest.create({
       data: {
         invitationId,
@@ -669,7 +737,8 @@ export async function submitPublicRsvp(
           eventId: event.id,
           maxPartySize: invitation.publicRsvpMaxPartySize,
           rsvpEligible: true,
-          checkInEligible: true,
+          checkInEligible: publicRsvpApproval === PublicRsvpApprovalState.APPROVED,
+          publicRsvpApproval,
         },
         select: { id: true },
       });
@@ -682,6 +751,20 @@ export async function submitPublicRsvp(
           ownerOverride: false,
           updatedBy: null,
         },
+      });
+      await writeAuditEvent(transaction, {
+        actorId: null,
+        invitationId,
+        resourceType: "guest_event",
+        resourceId: assignment.id,
+        action: "guest.public_rsvp_eligibility_updated",
+        metadata: {
+          approval_state: publicRsvpApproval,
+          previous_approval_state: PublicRsvpApprovalState.PENDING,
+          check_in_eligible: publicRsvpApproval === PublicRsvpApprovalState.APPROVED,
+          rsvp_status: RsvpStatus.ATTENDING,
+        },
+        createdAt: now,
       });
     }
 
@@ -711,6 +794,7 @@ export async function submitPublicRsvp(
       guestId: guest.id,
       personalizedPath: `/${encodeURIComponent(slug.slug)}/g/${credential.token}`,
       duplicateWarning,
+      approvalPending: publicRsvpApproval === PublicRsvpApprovalState.PENDING,
       events: openEvents.map((event) => ({ id: event.id, name: event.name, startsAt: event.startsAt.toISOString() })),
     } satisfies PublicRsvpMutationResult;
   });
@@ -719,11 +803,15 @@ export async function submitPublicRsvp(
 export * from "./rate-limit";
 export {
   overrideRsvp,
+  publicRsvpApprovalInputSchema,
   ownerRsvpControlInputSchema,
   ownerRsvpOverrideInputSchema,
+  setPublicRsvpApproval,
   setOwnerRsvpControl,
   type OwnerRsvpControlInput,
   type OwnerRsvpOverrideInput,
+  type PublicRsvpApprovalInput,
+  type PublicRsvpApprovalMutationResult,
   type RsvpControlMutationResult,
   type RsvpOverrideMutationResult,
 } from "./owner-controls";

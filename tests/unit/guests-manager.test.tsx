@@ -12,6 +12,7 @@ vi.mock("@/app/invitations/[id]/guests/actions", () => ({
   bulkUpdateGuestsAction: async () => ({ ok: true }),
   getGuestMergePreviewAction: async () => ({ ok: false }),
   mergeGuestAction: async () => ({ ok: true }),
+  setPublicRsvpApprovalAction: async () => ({ ok: true }),
   setRsvpControlAction: async () => ({ ok: true }),
   overrideRsvpAction: async () => ({ ok: true }),
 }));
@@ -94,6 +95,27 @@ describe("GuestsManager", () => {
     fireEvent.change(screen.getByLabelText("Filter RSVP"), { target: { value: "PENDING" } });
     expect(screen.getByRole("heading", { name: "Keluarga Santoso" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Rina" })).toBeNull();
+  });
+
+  it("shows public RSVP approval state and owner eligibility actions", () => {
+    const baseGuest = data().guests[0];
+    render(<GuestsManager data={data({ guests: [{
+      ...baseGuest,
+      assignedEvents: [{
+        id: "event-1",
+        assignmentId: "assignment-1",
+        name: "Resepsi",
+        maxPartySize: 2,
+        rsvpStatus: "ATTENDING",
+        rsvpSource: "PUBLIC",
+        publicRsvpApproval: "PENDING",
+        attendanceCount: 1,
+      }],
+    }] })} />);
+
+    expect(screen.getAllByText("Menunggu persetujuan QR").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Setujui QR" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tolak QR" })).toBeTruthy();
   });
 
   it("keeps editing and archive actions disabled for read-only lifecycle states", () => {

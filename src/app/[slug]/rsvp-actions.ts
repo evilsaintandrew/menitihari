@@ -29,7 +29,6 @@ export interface SubmitRsvpActionState {
   readonly result?: RsvpMutationResult;
 }
 
-export const initialSubmitRsvpActionState: SubmitRsvpActionState = { ok: false };
 
 export interface SubmitPublicRsvpActionState {
   readonly ok: boolean;
@@ -39,7 +38,6 @@ export interface SubmitPublicRsvpActionState {
   readonly result?: PublicRsvpMutationResult;
 }
 
-export const initialSubmitPublicRsvpActionState: SubmitPublicRsvpActionState = { ok: false };
 
 function stringValue(value: FormDataEntryValue | null): string {
   return typeof value === "string" ? value : "";

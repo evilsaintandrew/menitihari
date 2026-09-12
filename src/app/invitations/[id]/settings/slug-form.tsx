@@ -5,9 +5,11 @@ import { useActionState } from "react";
 import { Alert, Button, Field, FieldError, FieldLabel, Input } from "@/components/ui";
 
 import {
-  initialInvitationSlugActionState,
   updateInvitationSlugAction,
 } from "./actions";
+import type { InvitationSlugActionState } from "./actions";
+
+const initialInvitationSlugActionState: InvitationSlugActionState = { ok: false };
 
 export function InvitationSlugForm({
   invitationId,

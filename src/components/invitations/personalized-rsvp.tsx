@@ -11,13 +11,14 @@ import {
   Input,
   Textarea,
 } from "@/components/ui";
-import type { PersonalizedRsvpData, PersonalizedRsvpEvent, RsvpSummaryItem } from "@/modules/rsvp";
+import type { PersonalizedRsvpData, PersonalizedRsvpEvent, QrEligibility, RsvpSummaryItem } from "@/modules/rsvp";
 
 import {
-  initialSubmitRsvpActionState,
   submitPersonalizedRsvpAction,
 } from "@/app/[slug]/rsvp-actions";
 import type { SubmitRsvpActionState } from "@/app/[slug]/rsvp-actions";
+
+const initialSubmitRsvpActionState: SubmitRsvpActionState = { ok: false };
 
 interface RsvpDraft {
   readonly status: RsvpStatusValue;
@@ -49,8 +50,14 @@ function formatResponse(event: Pick<PersonalizedRsvpEvent, "status" | "attendanc
   return "Belum RSVP";
 }
 
-function formatSummary(item: RsvpSummaryItem): string {
+function formatSummary(item: Pick<RsvpSummaryItem, "status" | "attendanceCount">): string {
   return formatResponse(item);
+}
+
+function qrEligibilityCopy(eligibility: QrEligibility | undefined): string | null {
+  if (eligibility === "ELIGIBLE") return "QR check-in tersedia";
+  if (eligibility === "PENDING_APPROVAL") return "Menunggu persetujuan untuk QR check-in";
+  return null;
 }
 
 function formatEventDate(event: PersonalizedRsvpEvent): string {
@@ -80,7 +87,7 @@ function ResponseSummary({ summary }: { readonly summary: readonly RsvpSummaryIt
       {summary.map((item) => (
         <div className="personalized-rsvp-summary-row" key={item.eventId}>
           <strong>{item.eventName}</strong>
-          <span>{formatSummary(item)}</span>
+          <span>{formatSummary(item)}{qrEligibilityCopy(item.qrEligibility) ? ` · ${qrEligibilityCopy(item.qrEligibility)}` : ""}</span>
         </div>
       ))}
     </div>
@@ -291,6 +298,8 @@ export function PersonalizedRsvp({
           <>
             <ResponseSummary summary={state.result.summary} />
             <p className="personalized-rsvp-confirmation-copy">Terima kasih, jawaban Anda sudah tersimpan.</p>
+            {state.result.summary.some((item) => item.qrEligibility === "ELIGIBLE") && <p>QR check-in Anda sudah tersedia.</p>}
+            {state.result.summary.some((item) => item.qrEligibility === "PENDING_APPROVAL") && <p>Menunggu persetujuan untuk QR check-in.</p>}
             <div className="personalized-rsvp-confirmation-actions">
               <Button onClick={() => setOpen(false)} variant="secondary">Kembali ke Undangan</Button>
               {hasOpenEvents && <Button onClick={() => { setEditing(true); }} variant="ghost">Ubah RSVP</Button>}

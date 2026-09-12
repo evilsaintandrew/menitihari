@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
@@ -34,6 +34,7 @@ const invitation: InvitationRenderData = {
   rsvp: null,
   publicRsvp: {
     enabled: true,
+    approvalRequired: false,
     requirePhone: false,
     maxPartySize: 4,
     events: [{ id: "event-1", name: "Resepsi", startsAt: "2026-12-20T04:00:00.000Z" }],
@@ -74,5 +75,25 @@ describe("public RSVP interaction", () => {
     }} />);
     expect(screen.getByText("RSVP sudah ditutup")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Konfirmasi Kehadiran" })).toBeNull();
+  });
+
+  it("shows pending approval after a public RSVP when QR eligibility is owner-controlled", async () => {
+    submitPublicRsvpAction.mockResolvedValue({
+      ok: true,
+      result: {
+        invitationId: "invitation-1",
+        guestId: "guest-1",
+        personalizedPath: "/alya-bima/g/token",
+        duplicateWarning: false,
+        approvalPending: true,
+        events: [{ id: "event-1", name: "Resepsi", startsAt: "2026-12-20T04:00:00.000Z" }],
+      },
+    });
+    render(<InvitationRenderer invitation={invitation} />);
+    fireEvent.click(screen.getByRole("button", { name: "Konfirmasi Kehadiran" }));
+    fireEvent.change(screen.getByLabelText("Nama"), { target: { value: "Rina" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Kirim RSVP" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByText("Menunggu persetujuan untuk QR check-in.")).toBeTruthy());
   });
 });

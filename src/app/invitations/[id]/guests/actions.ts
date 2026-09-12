@@ -19,8 +19,10 @@ import {
 } from "@/modules/guests";
 import {
   overrideRsvp,
+  publicRsvpApprovalInputSchema,
   ownerRsvpControlInputSchema,
   ownerRsvpOverrideInputSchema,
+  setPublicRsvpApproval,
   setOwnerRsvpControl,
 } from "@/modules/rsvp";
 import { prisma } from "@/server/db";
@@ -351,5 +353,27 @@ export async function overrideRsvpAction(
       return { ok: false, errorCode: publicError.code, message: publicError.code === "VALIDATION_FAILED" ? "Jumlah hadir melebihi kapasitas tamu untuk acara ini." : publicError.message };
     }
     return { ok: false, errorCode: "INTERNAL_ERROR", message: "Override RSVP belum tersimpan. Coba lagi." };
+  }
+}
+
+export async function setPublicRsvpApprovalAction(
+  _previousState: RsvpActionState,
+  formData: FormData,
+): Promise<RsvpActionState> {
+  const parsed = publicRsvpApprovalInputSchema.safeParse({
+    guestEventId: stringValue(formData, "guestEventId"),
+    decision: stringValue(formData, "decision"),
+  });
+  if (!parsed.success) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Keputusan persetujuan belum valid." };
+  const userId = await ownerId();
+  if (!userId) return { ok: false, errorCode: "UNAUTHENTICATED", message: "Sesi Anda sudah berakhir. Masuk lagi untuk melanjutkan." };
+
+  try {
+    await setPublicRsvpApproval(prisma, userId, stringValue(formData, "invitationId"), parsed.data);
+    return { ok: true, message: parsed.data.decision === "APPROVE" ? "QR check-in tamu disetujui." : "QR check-in tamu ditolak." };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, errorCode: "VALIDATION_FAILED", message: "Keputusan persetujuan belum valid." };
+    if (error instanceof DomainError) return { ok: false, errorCode: toPublicError(error).code, message: toPublicError(error).message };
+    return { ok: false, errorCode: "INTERNAL_ERROR", message: "Persetujuan QR belum tersimpan. Coba lagi." };
   }
 }

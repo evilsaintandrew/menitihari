@@ -19,6 +19,8 @@ function assignment(overrides: Partial<PersonalizedRsvpAssignmentRecord> = {}): 
     eventId: "event-1",
     maxPartySize: 4,
     rsvpEligible: true,
+    checkInEligible: true,
+    publicRsvpApproval: "APPROVED",
     rsvp: null,
     event: {
       id: "event-1",
@@ -52,7 +54,7 @@ function databaseFor(inputAssignments: PersonalizedRsvpAssignmentRecord[]) {
         .mockResolvedValueOnce(inputAssignments.map((item) => ({
           eventId: item.eventId,
           event: { name: item.event.name },
-          rsvp: item.rsvp,
+          rsvp: item.rsvp ? { ...item.rsvp, source: item.rsvp.source ?? "PERSONALIZED" } : null,
         }))),
     },
     rSVP: { upsert: vi.fn().mockResolvedValue({}) },
@@ -73,7 +75,7 @@ describe("personalized RSVP domain", () => {
         id: "guest-event-2",
         eventId: "event-2",
         event: { ...assignment().event, id: "event-2", name: "Akad", rsvpClosesAt: now },
-        rsvp: { status: RsvpStatus.ATTENDING, attendanceCount: 2, notAttendingReason: null },
+        rsvp: { status: RsvpStatus.ATTENDING, attendanceCount: 2, notAttendingReason: null, source: "PERSONALIZED" },
       }),
     ], now);
 
@@ -162,6 +164,7 @@ describe("personalized RSVP domain", () => {
     const data = buildPublicRsvpData({
       genericAccessEnabled: true,
       publicRsvpEnabled: true,
+      publicRsvpRequireApproval: false,
       publicRsvpRequirePhone: true,
       publicRsvpMaxPartySize: 3,
     }, [event], getInvitedPeopleCapacity(500), now);

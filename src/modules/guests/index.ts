@@ -2,6 +2,7 @@ import {
   CommercialState,
   GuestEventState,
   Prisma,
+  PublicRsvpApprovalState,
   QrCredentialState,
   type PrismaClient,
 } from "@/generated/prisma/client";
@@ -107,6 +108,8 @@ export interface GuestEventSummary {
   readonly name: string;
   readonly maxPartySize: number;
   readonly rsvpStatus: string | null;
+  readonly rsvpSource: string | null;
+  readonly publicRsvpApproval: PublicRsvpApprovalState;
   readonly attendanceCount: number | null;
 }
 
@@ -284,9 +287,10 @@ const managementSelect = {
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
+          publicRsvpApproval: true,
           event: { select: { id: true, name: true } },
           maxPartySize: true,
-          rsvp: { select: { status: true, attendanceCount: true } },
+          rsvp: { select: { status: true, source: true, attendanceCount: true } },
         },
       },
     },
@@ -450,6 +454,8 @@ function toManagementData(record: ManagementRecord, now: Date): GuestManagementD
       name: assignment.event.name,
       maxPartySize: assignment.maxPartySize,
       rsvpStatus: assignment.rsvp?.status ?? null,
+      rsvpSource: assignment.rsvp?.source ?? null,
+      publicRsvpApproval: assignment.publicRsvpApproval,
       attendanceCount: assignment.rsvp?.attendanceCount ?? null,
     })),
     normalizedName: guest.normalizedName,

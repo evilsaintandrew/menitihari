@@ -6,9 +6,11 @@ import { Alert, Badge, Button, Checkbox, Field, FieldHint, FieldLabel, Input, Ra
 import type { PublicRsvpOwnerSettings } from "@/modules/rsvp";
 
 import {
-  initialPublicRsvpSettingsActionState,
   updatePublicRsvpSettingsAction,
 } from "./actions";
+import type { PublicRsvpSettingsActionState } from "./actions";
+
+const initialPublicRsvpSettingsActionState: PublicRsvpSettingsActionState = { ok: false };
 
 export function PublicRsvpForm({
   invitationId,
@@ -18,6 +20,7 @@ export function PublicRsvpForm({
   readonly settings: PublicRsvpOwnerSettings;
 }) {
   const [enabled, setEnabled] = useState(settings.enabled);
+  const [approvalMode, setApprovalMode] = useState(settings.requireApproval ? "approval" : "automatic");
   const [identityMode, setIdentityMode] = useState(settings.requirePhone ? "phone" : "name");
   const [maxPartySize, setMaxPartySize] = useState(String(settings.maxPartySize));
   const [eventIds, setEventIds] = useState(() => new Set(settings.events.filter((event) => event.publicRsvpEnabled).map((event) => event.id)));
@@ -62,6 +65,24 @@ export function PublicRsvpForm({
             name="identityMode"
             onChange={() => setIdentityMode("phone")}
             value="phone"
+          />
+        </div>
+        <div className="public-rsvp-identity-choice">
+          <FieldLabel>Persetujuan QR / check-in</FieldLabel>
+          <Radio
+            checked={approvalMode === "automatic"}
+            label="Otomatis setelah RSVP"
+            name="approvalMode"
+            onChange={() => setApprovalMode("automatic")}
+            value="automatic"
+          />
+          <Radio
+            checked={approvalMode === "approval"}
+            description="Tamu menunggu persetujuan Anda sebelum QR dapat digunakan."
+            label="Perlu persetujuan pasangan"
+            name="approvalMode"
+            onChange={() => setApprovalMode("approval")}
+            value="approval"
           />
         </div>
         <Field htmlFor="public-rsvp-max-party-size">
