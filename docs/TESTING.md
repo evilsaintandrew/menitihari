@@ -148,15 +148,25 @@ Use the smallest test layer that proves the behavior:
 
 ## 3. Local Verification Environment
 
-Run local verification serially, one check at a time, to keep memory use predictable. Always cap production builds at a 1 GB Node heap:
+Run local verification serially, one check at a time, to keep memory use predictable. Never run builds, tests, database setup, or browser checks concurrently.
+
+Before a build or memory-intensive test, inspect available RAM. If available RAM is 2 GiB or less, cap Node's heap at 1 GiB:
 
 ```sh
 NODE_OPTIONS=--max-old-space-size=1024 pnpm build
 ```
 
-Integration tests that require PostgreSQL should run against a temporary disposable Docker container. Apply all checked-in migrations to the container before testing and remove the container afterward; do not leave test data in a persistent development database.
+If available RAM is greater than 2 GiB, cap Node's heap at 2 GiB instead:
 
-When a ticket requires browser verification, use `agent-browser` for dev-server navigation, screenshots, accessibility/interaction inspection, and console/error checks. Close the browser session after verification. If the repository has no automated E2E suite for the journey, report the manual browser coverage and the missing automation separately.
+```sh
+NODE_OPTIONS=--max-old-space-size=2048 pnpm build
+```
+
+Integration tests that require PostgreSQL should run against a temporary disposable Docker container when Docker is available. Apply all checked-in migrations to the container before testing and remove the container afterward. If Docker is unavailable, use an installed local PostgreSQL server as a fallback: create a uniquely named temporary database and user, apply all checked-in migrations, point the test URL at it, and drop both after testing. Do not leave test data in a persistent development database.
+
+When a ticket requires browser verification, use `agent-browser` for dev-server navigation, screenshots, accessibility/interaction inspection, and console/error checks, preferring Lightpanda when it is available and compatible. Close the browser session after verification. If the repository has no automated E2E suite for the journey, report the manual browser coverage and the missing automation separately.
+
+If a verification step is blocked by permissions, sandboxing, daemon access, or another environment restriction, request elevated permission before declaring it blocked. If escalation is unavailable or denied, record the exact command, reason, and remaining coverage.
 
 ## 4. Golden E2E
 

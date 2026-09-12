@@ -84,15 +84,25 @@ Follow `TESTING.md` when it requires stricter or domain-specific scenarios.
 
 ### Verification Resource Discipline
 
-Run verification serially, one command or check at a time, to keep memory use predictable. Builds must always use a 1 GB Node heap, for example:
+Run verification serially, one command or check at a time, to keep memory use predictable. Never run builds, tests, database setup, or browser checks concurrently.
+
+Before a build or memory-intensive test, inspect available RAM. If available RAM is 2 GiB or less, cap Node's heap at 1 GiB:
 
 ```sh
 NODE_OPTIONS=--max-old-space-size=1024 pnpm build
 ```
 
-Integration tests that require PostgreSQL must use a temporary disposable Docker container. Apply the checked-in migrations before testing and remove the container after the checks finish. Do not reuse a persistent local database for ticket verification unless the ticket explicitly requires it.
+If available RAM is greater than 2 GiB, cap Node's heap at 2 GiB instead:
 
-For browser-required work, use the `agent-browser` skill/CLI to inspect the dev server and UI. Verify the relevant routes and states, then close the browser session. Record any unavailable E2E coverage explicitly rather than claiming it passed.
+```sh
+NODE_OPTIONS=--max-old-space-size=2048 pnpm build
+```
+
+Integration tests that require PostgreSQL must use a temporary disposable Docker container when Docker is available. Apply all checked-in migrations before testing and remove the container after the checks finish. If Docker is unavailable, use an installed local PostgreSQL server as a fallback: create a uniquely named temporary database and user, apply all checked-in migrations, point the test URL at it, and drop both after testing. Never reuse a persistent development database.
+
+For browser-required work, use the `agent-browser` skill/CLI to inspect the dev server and UI, preferring Lightpanda when it is available and compatible. Verify the relevant routes and states, then close the browser session. Record any unavailable E2E coverage explicitly rather than claiming it passed.
+
+If a verification step is blocked by permissions, sandboxing, daemon access, or another environment restriction, request elevated permission before declaring it blocked. If escalation is unavailable or denied, record the exact command, reason, and remaining coverage.
 
 For UI tickets, visually verify applicable referenced wireframes at representative mobile and desktop widths and exercise relevant loading, empty, validation, success, error, dialog/sheet, keyboard/focus, and recovery states. Low-fidelity wireframes define behavior and hierarchy; they are not pixel-diff targets.
 

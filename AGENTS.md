@@ -97,10 +97,12 @@ For UI work also verify the relevant desktop/mobile surfaces, applicable loading
 
 Resource-conscious verification rules:
 
-- Run verification commands serially, one at a time. Do not run build, tests, database setup, or browser checks concurrently when doing so could increase memory use.
-- Always run builds with a 1 GB Node heap, for example `NODE_OPTIONS=--max-old-space-size=1024 pnpm build`.
-- Integration tests that require PostgreSQL use a temporary disposable Docker container. Apply the checked-in migrations, point the test URL at that container, and remove the container after verification.
-- Browser verification uses the `agent-browser` skill/CLI for dev-server and UI checks. Close the browser session when verification is complete.
+- Run verification commands serially, one at a time. Never run builds, tests, database setup, or browser checks concurrently.
+- Before a build or memory-intensive test, inspect available RAM. If available RAM is 2 GiB or less, cap Node's heap at 1 GiB (`NODE_OPTIONS=--max-old-space-size=1024`); if available RAM is greater than 2 GiB, cap it at 2 GiB (`NODE_OPTIONS=--max-old-space-size=2048`).
+- Integration tests that require PostgreSQL use a temporary disposable Docker container when Docker is available. Apply all checked-in migrations, point the test URL at that container, and remove the container after verification.
+- If Docker is unavailable, use an installed local PostgreSQL server as a fallback: create a uniquely named temporary database and user, apply all checked-in migrations, point the test URL at it, and drop both after verification. Do not reuse a persistent development database.
+- Browser verification uses the `agent-browser` skill/CLI for dev-server and UI checks, preferring Lightpanda when it is available and compatible. Close the browser session when verification is complete.
+- If verification is blocked by permissions, sandboxing, daemon access, or another environment restriction, request elevated permission before declaring the check blocked. Report the exact command, reason, and remaining coverage if escalation is unavailable or denied.
 
 Never report a check as passing if it was not run. If a check cannot run, state exactly why and what remains unverified.
 
