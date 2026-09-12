@@ -42,6 +42,7 @@ const preview: InvitationRenderData = {
   themeConfig: { accent: "rose", fontPairing: "serif-sans", coverStyle: "centered", sectionStyle: "soft" },
   content,
   events: [],
+  rsvp: null,
 };
 
 const theme: ResolvedThemePresentation = {

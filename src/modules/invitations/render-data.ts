@@ -15,6 +15,11 @@ import {
 } from "./content";
 import { eventContactSchema, type EventContact } from "@/modules/events";
 import { ownerMembershipWhere } from "./authorization";
+import {
+  buildPersonalizedRsvpData,
+  type PersonalizedRsvpAssignmentRecord,
+  type PersonalizedRsvpData,
+} from "@/modules/rsvp";
 
 const invitationRenderSelect = {
   id: true,
@@ -107,6 +112,7 @@ export interface InvitationRenderData {
   readonly content: InvitationContent;
   readonly events: readonly InvitationRenderEvent[];
   readonly guest: InvitationGuestContext | null;
+  readonly rsvp: PersonalizedRsvpData | null;
 }
 
 export interface PublicInvitationPageData {
@@ -222,6 +228,7 @@ export function buildInvitationRenderData(
     content: buildInvitationContent(record),
     events,
     guest: mode === "personalized" ? guest : null,
+    rsvp: null,
   };
 }
 
@@ -288,7 +295,25 @@ export async function getPersonalizedInvitationPageData(
           state: "ACTIVE",
           event: { invitationId, archivedAt: null },
         },
-        select: { eventId: true },
+        select: {
+          id: true,
+          eventId: true,
+          maxPartySize: true,
+          rsvpEligible: true,
+          rsvp: { select: { status: true, attendanceCount: true, notAttendingReason: true } },
+          event: {
+            select: {
+              id: true,
+              name: true,
+              startsAt: true,
+              endsAt: true,
+              timezone: true,
+              rsvpEnabled: true,
+              rsvpClosesAt: true,
+              cancelledAt: true,
+            },
+          },
+        },
       },
     },
   });
@@ -303,6 +328,7 @@ export async function getPersonalizedInvitationPageData(
     },
     select: {
       ...invitationRenderSelect,
+      rsvpEnabled: true,
       events: {
         where: { id: { in: eventIds }, archivedAt: null },
         orderBy: { startsAt: "asc" },
@@ -312,5 +338,13 @@ export async function getPersonalizedInvitationPageData(
   });
   if (!record || !isPublishedInvitationAvailable(record, now)) return null;
 
-  return buildInvitationRenderData(record, "personalized", { displayName: guest.displayName });
+  const renderData = buildInvitationRenderData(record, "personalized", { displayName: guest.displayName });
+  return {
+    ...renderData,
+    rsvp: buildPersonalizedRsvpData(
+      record.rsvpEnabled,
+      guest.eventAssignments as PersonalizedRsvpAssignmentRecord[],
+      now,
+    ),
+  };
 }

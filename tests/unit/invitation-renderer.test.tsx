@@ -9,6 +9,10 @@ import type { InvitationRenderData } from "@/modules/invitations";
 
 const captureSanitizedError = vi.hoisted(() => vi.fn());
 vi.mock("@/modules/errors", () => ({ captureSanitizedError }));
+vi.mock("@/app/[slug]/rsvp-actions", () => ({
+  initialSubmitRsvpActionState: { ok: false },
+  submitPersonalizedRsvpAction: vi.fn(),
+}));
 
 const invitation: InvitationRenderData = {
   invitationId: "invitation-1",
@@ -24,6 +28,7 @@ const invitation: InvitationRenderData = {
     optional: {},
   },
   events: [],
+  rsvp: null,
 };
 
 afterEach(() => {
