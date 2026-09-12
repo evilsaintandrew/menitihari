@@ -5,9 +5,11 @@ import { useActionState } from "react";
 import { Alert, Badge, Button, Field, FieldError, FieldLabel, Input } from "@/components/ui";
 
 import {
-  initialInvitationPasswordActionState,
   updateInvitationPasswordAction,
 } from "./actions";
+import type { InvitationPasswordActionState } from "./actions";
+
+const initialInvitationPasswordActionState: InvitationPasswordActionState = { ok: false };
 
 export function InvitationPasswordForm({
   invitationId,

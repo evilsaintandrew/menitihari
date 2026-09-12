@@ -24,6 +24,7 @@ const baseRecord = {
   activeUntil: null,
   genericAccessEnabled: true,
   publicRsvpEnabled: false,
+  publicRsvpRequireApproval: false,
   publicRsvpRequirePhone: false,
   publicRsvpMaxPartySize: 1,
   content: {
@@ -110,6 +111,8 @@ describe("invitation render data", () => {
             eventId: "event-generic",
             maxPartySize: 3,
             rsvpEligible: true,
+            checkInEligible: true,
+            publicRsvpApproval: "PENDING",
             rsvp: null,
             event: {
               id: "event-generic",

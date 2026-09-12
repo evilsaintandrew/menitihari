@@ -43,8 +43,8 @@ Key fields:
 -   `generic_access_enabled`
 -   `shared_password_hash`, `access_version`
 -   `guest_sharing_enabled`
--   `rsvp_enabled`, public-RSVP enabled/phone-required settings, and
-    maximum public party size
+-   `rsvp_enabled`, public-RSVP enabled/phone-required/approval settings,
+    and maximum public party size
 -   `guestbook_enabled`, guestbook mode/moderation
 -   timestamps/version for optimistic concurrency
 

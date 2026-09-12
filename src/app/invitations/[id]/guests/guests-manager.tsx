@@ -32,6 +32,7 @@ import {
   mergeGuestAction,
   overrideRsvpAction,
   saveGuestAction,
+  setPublicRsvpApprovalAction,
   setRsvpControlAction,
   type GuestActionState,
   type GuestMergePreviewActionState,
@@ -51,6 +52,15 @@ function distributionLabel(status: GuestManagementItem["distributionStatus"]): s
   return status === "MARKED_SENT" ? "Ditandai Terkirim" : status === "WHATSAPP_OPENED" ? "WhatsApp Dibuka" : "Belum Dikirim";
 }
 
+function publicApprovalSummary(event: GuestManagementItem["assignedEvents"][number]): string {
+  if (event.rsvpSource !== "PUBLIC") return "";
+  return event.publicRsvpApproval === "APPROVED"
+    ? " · QR disetujui"
+    : event.publicRsvpApproval === "REJECTED"
+      ? " · QR ditolak"
+      : " · Menunggu persetujuan QR";
+}
+
 function hasHistoricalAssignment(guest: GuestManagementItem, eventId: string): boolean {
   return guest.assignedEvents.some((event) => event.id === eventId && (event.rsvpStatus !== null || event.attendanceCount !== null));
 }
@@ -68,6 +78,44 @@ function GuestActionMessage({ state }: { readonly state: GuestActionState }) {
 function RsvpActionMessage({ state }: { readonly state: RsvpActionState }) {
   if (!state.message) return null;
   return <Alert role={state.ok ? "status" : "alert"} tone={state.ok ? "success" : "danger"} title={state.ok ? "RSVP diperbarui" : "Perubahan RSVP belum tersimpan"}>{state.message}</Alert>;
+}
+
+function publicRsvpApprovalLabel(approval: GuestManagementItem["assignedEvents"][number]["publicRsvpApproval"]): string {
+  return approval === "APPROVED" ? "QR disetujui" : approval === "REJECTED" ? "QR ditolak" : "Menunggu persetujuan QR";
+}
+
+function GuestPublicRsvpApproval({ invitationId, event, canEdit }: { readonly invitationId: string; readonly event: GuestManagementItem["assignedEvents"][number]; readonly canEdit: boolean }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(setPublicRsvpApprovalAction, initialRsvpActionState);
+  useEffect(() => { if (state.ok) router.refresh(); }, [router, state.ok]);
+  if (event.rsvpSource !== "PUBLIC") return null;
+
+  return (
+    <div className="guests-public-rsvp-approval">
+      <div className="guests-rsvp-override-heading">
+        <strong>{event.name}</strong>
+        <Badge tone={event.publicRsvpApproval === "APPROVED" ? "success" : event.publicRsvpApproval === "PENDING" ? "warning" : "neutral"}>
+          {publicRsvpApprovalLabel(event.publicRsvpApproval)}
+        </Badge>
+      </div>
+      <p className="ui-muted">Persetujuan hanya mengubah kelayakan QR/check-in, bukan identitas atau jawaban RSVP.</p>
+      <div className="guests-rsvp-control-actions">
+        <form action={action}>
+          <input name="invitationId" type="hidden" value={invitationId} />
+          <input name="guestEventId" type="hidden" value={event.assignmentId} />
+          <input name="decision" type="hidden" value="APPROVE" />
+          <Button disabled={!canEdit || pending || event.publicRsvpApproval === "APPROVED"} size="sm" type="submit">{pending ? "Menyimpan…" : "Setujui QR"}</Button>
+        </form>
+        <form action={action}>
+          <input name="invitationId" type="hidden" value={invitationId} />
+          <input name="guestEventId" type="hidden" value={event.assignmentId} />
+          <input name="decision" type="hidden" value="REJECT" />
+          <Button disabled={!canEdit || pending || event.publicRsvpApproval === "REJECTED"} size="sm" variant="secondary" type="submit">Tolak QR</Button>
+        </form>
+      </div>
+      <RsvpActionMessage state={state} />
+    </div>
+  );
 }
 
 function DuplicateWarning({ warnings }: { readonly warnings: GuestActionState["duplicateWarnings"] }) {
@@ -494,7 +542,7 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
   const [editing, setEditing] = useState(false);
   const rsvpSummary = guest.assignedEvents.length === 0
     ? "Belum ada acara"
-    : guest.assignedEvents.map((event) => `${event.name} (${event.maxPartySize} orang): ${event.rsvpStatus === "ATTENDING" ? `Hadir${event.attendanceCount ? ` ${event.attendanceCount}` : ""}` : event.rsvpStatus === "NOT_ATTENDING" ? "Tidak hadir" : "Belum"}`).join(" · ");
+    : guest.assignedEvents.map((event) => `${event.name} (${event.maxPartySize} orang): ${event.rsvpStatus === "ATTENDING" ? `Hadir${event.attendanceCount ? ` ${event.attendanceCount}` : ""}` : event.rsvpStatus === "NOT_ATTENDING" ? "Tidak hadir" : "Belum"}${publicApprovalSummary(event)}`).join(" · ");
 
   return (
     <Card className="guests-card">
@@ -518,7 +566,12 @@ function GuestCard({ invitationId, groups, events, guest, canEdit, selected, onT
         {guest.notes && <p className="guests-card-notes">Catatan: {guest.notes}</p>}
         {canEdit && guest.assignedEvents.length > 0 && (
           <div className="guests-rsvp-override-list" aria-label={`Override RSVP ${guest.displayName}`}>
-            {guest.assignedEvents.map((event) => <GuestRsvpOverride canEdit={canEdit} event={event} invitationId={invitationId} key={event.assignmentId} />)}
+            {guest.assignedEvents.map((event) => (
+              <div key={event.assignmentId}>
+                <GuestPublicRsvpApproval canEdit={canEdit} event={event} invitationId={invitationId} />
+                <GuestRsvpOverride canEdit={canEdit} event={event} invitationId={invitationId} />
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

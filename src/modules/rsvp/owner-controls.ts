@@ -1,7 +1,9 @@
 import {
   CommercialState,
   GuestEventState,
+  PublicRsvpApprovalState,
   RsvpStatus,
+  RsvpSource,
   type PrismaClient,
 } from "@/generated/prisma/client";
 import { writeAuditEvent } from "@/modules/audit";
@@ -70,6 +72,21 @@ export interface RsvpOverrideMutationResult {
   readonly rsvpId: string;
   readonly status: RsvpStatus;
   readonly attendanceCount: number | null;
+  readonly changed: boolean;
+}
+
+export const publicRsvpApprovalInputSchema = z.object({
+  guestEventId: z.string().trim().min(1).max(128),
+  decision: z.enum(["APPROVE", "REJECT"]),
+}).strict();
+
+export type PublicRsvpApprovalInput = z.input<typeof publicRsvpApprovalInputSchema>;
+
+export interface PublicRsvpApprovalMutationResult {
+  readonly invitationId: string;
+  readonly guestEventId: string;
+  readonly approval: PublicRsvpApprovalState;
+  readonly checkInEligible: boolean;
   readonly changed: boolean;
 }
 
@@ -253,5 +270,83 @@ export async function overrideRsvp(
       attendanceCount: nextAttendanceCount,
       changed: assignment.rsvp?.status !== parsed.status || assignment.rsvp?.attendanceCount !== nextAttendanceCount,
     } satisfies RsvpOverrideMutationResult;
+  });
+}
+
+/**
+ * Changes only the server-owned QR/check-in eligibility for a public-RSVP
+ * assignment. The guest identity and RSVP record remain untouched.
+ */
+export async function setPublicRsvpApproval(
+  database: RsvpDatabase,
+  userId: string,
+  invitationId: string,
+  input: PublicRsvpApprovalInput,
+  options: RsvpServiceOptions = {},
+): Promise<PublicRsvpApprovalMutationResult> {
+  const parsed = publicRsvpApprovalInputSchema.parse(input);
+  const now = options.now?.() ?? new Date();
+  assertValidClock(now);
+
+  return database.$transaction(async (transaction) => {
+    const invitation = await transaction.invitation.findFirst({
+      where: { id: invitationId, ...ownerMembershipWhere(userId) },
+      select: { id: true, commercialState: true, trialEndsAt: true, activeUntil: true },
+    });
+    if (!invitation) throw new DomainError(ERROR_CODES.NOT_FOUND);
+    assertInvitationCanEdit(invitation, now);
+
+    const assignment = await transaction.guestEvent.findFirst({
+      where: {
+        id: parsed.guestEventId,
+        state: GuestEventState.ACTIVE,
+        guest: { invitationId, archivedAt: null },
+        event: { invitationId, archivedAt: null },
+      },
+      select: {
+        id: true,
+        publicRsvpApproval: true,
+        checkInEligible: true,
+        rsvp: { select: { status: true, source: true } },
+      },
+    });
+    if (!assignment || assignment.rsvp?.source !== RsvpSource.PUBLIC) {
+      throw new DomainError(ERROR_CODES.NOT_FOUND);
+    }
+
+    const approval = parsed.decision === "APPROVE"
+      ? PublicRsvpApprovalState.APPROVED
+      : PublicRsvpApprovalState.REJECTED;
+    const checkInEligible = approval === PublicRsvpApprovalState.APPROVED && assignment.rsvp.status === RsvpStatus.ATTENDING;
+    const changed = assignment.publicRsvpApproval !== approval || assignment.checkInEligible !== checkInEligible;
+
+    if (changed) {
+      await transaction.guestEvent.update({
+        where: { id: assignment.id },
+        data: { publicRsvpApproval: approval, checkInEligible },
+      });
+      await writeAuditEvent(transaction, {
+        actorId: userId,
+        invitationId,
+        resourceType: "guest_event",
+        resourceId: assignment.id,
+        action: "guest.public_rsvp_eligibility_updated",
+        metadata: {
+          previous_approval_state: assignment.publicRsvpApproval,
+          approval_state: approval,
+          previous_check_in_eligible: assignment.checkInEligible,
+          check_in_eligible: checkInEligible,
+        },
+        createdAt: now,
+      });
+    }
+
+    return {
+      invitationId,
+      guestEventId: assignment.id,
+      approval,
+      checkInEligible,
+      changed,
+    } satisfies PublicRsvpApprovalMutationResult;
   });
 }
