@@ -541,6 +541,31 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
 .invitation-renderer-social-links a { border: 1px solid color-mix(in srgb, var(--invitation-accent) 40%, transparent); border-radius: 999px; color: var(--invitation-foreground); display: inline-block; font-size: 13px; padding: 7px 12px; text-decoration: none; }
 .invitation-renderer blockquote { font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-style: italic; margin: 0 auto; max-width: 610px; }
 .invitation-renderer-hashtag { color: var(--invitation-accent); font-weight: 900; text-align: center; }
+.personalized-rsvp-card { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); display: grid; gap: 12px; margin-top: 4px; padding: 34px 0 8px; text-align: center; }
+.personalized-rsvp-card h2 { color: var(--invitation-foreground); font-size: clamp(24px, 4vw, 32px); }
+.personalized-rsvp-summary { background: color-mix(in srgb, var(--invitation-accent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--invitation-accent) 25%, transparent); border-radius: 18px; display: grid; gap: 10px; margin: 0 auto 4px; max-width: 520px; padding: 14px 16px; text-align: left; width: 100%; }
+.personalized-rsvp-summary-row { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; }
+.personalized-rsvp-summary-row span { opacity: .78; }
+.personalized-rsvp-closed-copy { color: var(--color-warning); font-weight: 800; }
+.personalized-rsvp-dialog { max-width: 640px; }
+.personalized-rsvp-form { display: grid; gap: 18px; }
+.personalized-rsvp-event-fields { border: 1px solid var(--color-border); border-radius: 18px; display: grid; gap: 14px; margin: 0; min-width: 0; padding: 16px; }
+.personalized-rsvp-event-fields:disabled { opacity: .7; }
+.personalized-rsvp-event-fields legend { display: grid; gap: 2px; padding: 0 6px; }
+.personalized-rsvp-event-fields legend strong { color: var(--color-ink-strong); }
+.personalized-rsvp-event-fields legend span { color: var(--color-ink-muted); font-size: 14px; }
+.personalized-rsvp-choices { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.personalized-rsvp-choice { align-items: center; border: 1px solid var(--color-border); border-radius: 12px; display: flex; gap: 9px; min-height: 46px; padding: 10px 12px; }
+.personalized-rsvp-choice:has(input:checked) { border-color: var(--color-brand); box-shadow: 0 0 0 2px rgb(89 46 255 / 12%); }
+.personalized-rsvp-choice input { accent-color: var(--color-brand); height: 18px; width: 18px; }
+.personalized-rsvp-count-control { align-items: center; display: grid; gap: 8px; grid-template-columns: 44px minmax(100px, 1fr) 44px auto; }
+.personalized-rsvp-count-control .ui-input { text-align: center; }
+.personalized-rsvp-count-max { color: var(--color-ink-muted); font-size: 14px; white-space: nowrap; }
+.personalized-rsvp-closed-event { background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: 18px; color: var(--color-ink-muted); display: grid; gap: 3px; padding: 14px 16px; }
+.personalized-rsvp-closed-event div { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; }
+.personalized-rsvp-closed-event strong { color: var(--color-ink-strong); }
+.personalized-rsvp-confirmation-copy { color: var(--color-ink-muted); }
+.personalized-rsvp-confirmation-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .invitation-renderer-footer { border-top: 1px solid color-mix(in srgb, var(--invitation-accent) 28%, transparent); font-size: 11px; letter-spacing: .08em; opacity: .6; padding: 18px; text-align: center; text-transform: uppercase; }
 .invitation-renderer-fallback { align-items: center; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 28px; display: flex; flex-direction: column; gap: 12px; min-height: 360px; justify-content: center; padding: 32px; text-align: center; }
 .invitation-renderer-fallback h2 { font-size: 24px; }
@@ -578,6 +603,7 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .ui-staff-header { align-items: flex-start; flex-direction: column; }
   .ui-dialog { border-radius: 24px; }
   .ui-bottom-sheet { border-radius: 28px 28px 0 0; }
+  .personalized-rsvp-dialog { align-self: flex-end; border-radius: 28px 28px 0 0; max-height: calc(100vh - 12px); }
   .invitation-dashboard-header { align-items: flex-start; flex-direction: column; }
   .invitation-dashboard-header .ui-button { width: 100%; }
 }
@@ -589,6 +615,11 @@ h1, h2, h3, h4 { color: var(--color-ink-strong); font-family: var(--font-display
   .ui-offline-state { align-items: flex-start; flex-wrap: wrap; }
   .ui-offline-state .ui-button { margin-left: 36px; }
   .ui-dialog-header, .ui-dialog-body { padding-left: 20px; padding-right: 20px; }
+  .personalized-rsvp-choices { grid-template-columns: 1fr; }
+  .personalized-rsvp-count-control { grid-template-columns: 42px minmax(80px, 1fr) 42px; }
+  .personalized-rsvp-count-max { grid-column: 1 / -1; text-align: center; }
+  .personalized-rsvp-confirmation-actions { display: grid; }
+  .personalized-rsvp-confirmation-actions .ui-button { width: 100%; }
   .auth-page { align-items: flex-start; padding-top: 20px; }
   .auth-card { padding: 22px 20px; }
 }

@@ -10,6 +10,8 @@ import type {
 } from "@/modules/invitations";
 import type { ResolvedThemePresentation } from "@/modules/themes";
 
+import { PersonalizedRsvp } from "./personalized-rsvp";
+
 interface InvitationThemeViewProps {
   readonly invitation: InvitationRenderData;
   readonly theme: ResolvedThemePresentation;
@@ -201,6 +203,7 @@ export function InvitationThemeView({ invitation, theme }: InvitationThemeViewPr
           invitation.mode === "personalized",
         )}
         {invitation.content.optional.hashtag && <p className="invitation-renderer-hashtag">{invitation.content.optional.hashtag}</p>}
+        {invitation.mode === "personalized" && <PersonalizedRsvp data={invitation.rsvp} invitationId={invitation.invitationId} />}
       </div>
       <footer className="invitation-renderer-footer">{theme.definition.name}</footer>
     </article>

@@ -89,13 +89,30 @@ describe("invitation render data", () => {
     const invitation = {
       ...baseRecord,
       genericAccessEnabled: false,
+      rsvpEnabled: true,
       events: [baseRecord.events[0]],
     };
     const result = await getPersonalizedInvitationPageData({
       guest: {
         findFirst: async () => ({
           displayName: "Keluarga Santoso",
-          eventAssignments: [{ eventId: "event-generic" }],
+          eventAssignments: [{
+            id: "guest-event-1",
+            eventId: "event-generic",
+            maxPartySize: 3,
+            rsvpEligible: true,
+            rsvp: null,
+            event: {
+              id: "event-generic",
+              name: "Akad Nikah",
+              startsAt: new Date("2026-12-20T03:00:00.000Z"),
+              endsAt: null,
+              timezone: "Asia/Jakarta",
+              rsvpEnabled: true,
+              rsvpClosesAt: null,
+              cancelledAt: null,
+            },
+          }],
         }),
       },
       invitation: {
@@ -110,6 +127,7 @@ describe("invitation render data", () => {
       mode: "personalized",
       guest: { displayName: "Keluarga Santoso" },
       events: [{ id: "event-generic" }],
+      rsvp: { enabled: true, events: [{ id: "event-generic", canRespond: true, status: "PENDING", maxPartySize: 3 }] },
     });
   });
 
